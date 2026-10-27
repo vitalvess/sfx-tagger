@@ -34,6 +34,7 @@ jobs:
       - name: Construir a app (zip igual ao que se envia)
         run: |
           pip install numpy
+          mkdir -p dist
           python ferramentas/build_mac_app.py dist
 
       - name: Instalar como um colega (zip descarregado, em quarentena)
@@ -90,6 +91,7 @@ jobs:
       - name: Construir o zip
         run: |
           pip install numpy
+          mkdir -p dist
           python ferramentas/build_windows.py dist
 
       - name: Extrair e abrir como um colega
