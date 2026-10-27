@@ -1,0 +1,8 @@
+# O PyTorch é instalado à parte pelos instaladores (versão só-CPU no Windows).
+transformers>=4.40
+fastapi>=0.110
+uvicorn>=0.29
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12
+pyloudnorm>=0.1.1

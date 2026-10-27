@@ -1,0 +1,128 @@
+# Instala e testa a app como um colega faria, em Macs e Windows reais na nuvem.
+# Corre a cada push e à mão (separador Actions > "Testar a app" > Run workflow).
+name: Testar a app
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      com_ia:
+        description: "Instalar também a IA e analisar sons (demora ~20 min)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: testar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    name: Mac (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15, macos-15-intel]   # Sonoma M1, Sequoia M1, Sequoia Intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Construir a app (zip igual ao que se envia)
+        run: |
+          pip install numpy
+          python ferramentas/build_mac_app.py dist
+
+      - name: Instalar como um colega (zip descarregado, em quarentena)
+        run: |
+          # o Finder extrai com o ditto; o browser marca tudo como descarregado da internet
+          ditto -x -k dist/*.zip extraido
+          xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "extraido/SFX Tagger.app"
+          mv "extraido/SFX Tagger.app" /Applications/
+          # o comando que damos aos colegas para passar o Gatekeeper
+          xattr -cr "/Applications/SFX Tagger.app"
+          ls -la "/Applications/SFX Tagger.app/Contents/MacOS"
+
+      - name: Abrir a app (duplo clique) e clicar outra vez, impaciente
+        run: |
+          open "/Applications/SFX Tagger.app"
+          sleep 8
+          open "/Applications/SFX Tagger.app"
+
+      - name: Testar
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.com_ia }}" = "false" ]; then
+            python ferramentas/ci/teste_fim_a_fim.py --sem-ia
+          else
+            python ferramentas/ci/teste_fim_a_fim.py
+          fi
+
+      - name: Captura de ecrã e registos
+        if: always()
+        run: |
+          mkdir -p resultado
+          screencapture -x resultado/ecra.png || true
+          SUP="$HOME/Library/Application Support/SFXTagger"
+          cp "$SUP"/*.log resultado/ 2>/dev/null || true
+          ls -la "$SUP" || true
+          for f in "$SUP"/registo*.log; do echo "===== $f"; tail -60 "$f"; done || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registos-${{ matrix.os }}
+          path: resultado/
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Construir o zip
+        run: |
+          pip install numpy
+          python ferramentas/build_windows.py dist
+
+      - name: Extrair e abrir como um colega
+        shell: pwsh
+        env:
+          SFXTAGGER_NO_BROWSER: "1"
+          SFXTAGGER_NO_SHORTCUT: "1"
+        run: |
+          $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName extraido
+          $bat = Get-ChildItem -Recurse extraido -Filter "Abrir SFX Tagger.bat" | Select-Object -First 1
+          cmd /c "`"$($bat.FullName)`""
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Testar
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.com_ia }}" -eq "false") {
+            python ferramentas/ci/teste_fim_a_fim.py --sem-ia
+          } else {
+            python ferramentas/ci/teste_fim_a_fim.py
+          }
+
+      - name: Registos
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force resultado | Out-Null
+          Copy-Item "$env:LOCALAPPDATA\SFXTagger\*.log" resultado -ErrorAction SilentlyContinue
+          Get-ChildItem resultado | ForEach-Object { "===== $_"; Get-Content $_ -Tail 60 }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registos-windows
+          path: resultado/
