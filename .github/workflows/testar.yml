@@ -61,6 +61,14 @@ jobs:
             python ferramentas/ci/teste_fim_a_fim.py
           fi
 
+      - name: Confirmar que corre nativo (sem emulação Intel nos Macs com chip M)
+        run: |
+          LOG="$HOME/Library/Application Support/SFXTagger/registo.log"
+          if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+            grep -q "arquitetura: arm64" "$LOG" && grep -q "· arm64 ·" "$LOG" || { echo "A app correu em emulação Intel"; exit 1; }
+          fi
+          grep "arquitetura\|Servidor pronto\|Python 3" "$LOG"
+
       - name: Captura de ecrã e registos
         if: always()
         run: |
