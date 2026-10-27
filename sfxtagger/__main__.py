@@ -16,19 +16,22 @@ def _free_port(preferred: int) -> int:
     raise SystemExit("Não encontrei nenhuma porta livre")
 
 
-def _open_when_ready(port: int, url: str, timeout: float = 120.0) -> None:
+def _open_when_ready(port: int, url: str, timeout: float = 1800.0) -> None:
     """Abre o browser só quando o servidor já responde. Abrir antes (um tempo fixo) falhava
-    em computadores mais lentos: o browser mostrava "não foi possível abrir a página"."""
+    em computadores mais lentos: o browser mostrava "não foi possível abrir a página".
+    O primeiro arranque num Mac pode demorar minutos (o macOS verifica cada biblioteca nova)."""
     import time
     import urllib.request
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    t0 = time.time()
+    while time.time() - t0 < timeout:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=2):
-                break
+                print(f"  Servidor pronto em {time.time() - t0:.0f} s; a abrir o browser.", flush=True)
+                webbrowser.open(url)
+                return
         except Exception:
             time.sleep(0.5)
-    webbrowser.open(url)
+    print("  O servidor não respondeu a tempo; o browser não foi aberto.", flush=True)
 
 
 def main() -> None:
@@ -44,9 +47,15 @@ def main() -> None:
         sys.stdout = sys.stdout or log
         sys.stderr = sys.stderr or log
 
+    import platform
+    import time
+    print(f"=== {time.strftime('%Y-%m-%d %H:%M:%S')} · Python {platform.python_version()} "
+          f"· {platform.machine()} · {platform.platform()}", flush=True)
+
     import uvicorn
 
-    from . import setup_ai
+    from . import __version__, setup_ai
+    print(f"  SFX Tagger {__version__}", flush=True)
     if not setup_ai.ai_installed():
         print("  Primeira utilização: a instalar os componentes de IA em segundo plano…")
         setup_ai.ensure_started()
