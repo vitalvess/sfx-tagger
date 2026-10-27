@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFX Tagger</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SFX Tagger</div>
+  <button id="btnFolder" class="folder" title="Abrir pasta de sons">
+    <span id="folderLabel">Abrir pasta…</span>
+  </button>
+  <div class="spacer"></div>
+  <div id="jobBox" class="job hidden">
+    <div class="job-text" id="jobText"></div>
+    <div class="bar"><div id="jobBar"></div></div>
+  </div>
+  <div class="menu-wrap">
+    <button id="btnAnalyze" class="primary" disabled>Analisar</button>
+    <div class="menu hidden" id="analyzeMenu">
+      <button data-an="new">Ficheiros ainda não analisados</button>
+      <button data-an="sel">Só os selecionados</button>
+      <button data-an="all">Reanalisar tudo</button>
+    </div>
+  </div>
+  <button id="btnUpload" title="Escolher ficheiros de som do computador">Carregar sons</button>
+  <button id="btnWrite" disabled>Gravar nos ficheiros</button>
+  <button id="btnDefaults" disabled title="Dados da biblioteca (Library, Designer, CreatorID…)">Biblioteca</button>
+  <div class="menu-wrap">
+    <button id="btnExport" disabled>Exportar</button>
+    <div class="menu hidden" id="exportMenu">
+      <a class="btn" id="exCsv" href="/api/export.csv">Metadados (CSV)</a>
+      <a class="btn" id="exReport" href="/api/report.csv">Relatório da IA: acertos e erros (CSV)</a>
+      <a class="btn" id="exZip" href="/api/download.zip">Sons com metadados (ZIP)</a>
+    </div>
+  </div>
+  <button id="btnKnowledge" title="Ensinar a IA com os teus sons e partilhar o que ela aprendeu">Treinar a IA <span class="count-badge" id="trainCount">0</span></button>
+  <a class="btn" href="/static/ajuda.html" target="_blank" title="Como funciona a app">Ajuda</a>
+  <button id="btnQuit" class="hidden" title="Fechar a app">Sair</button>
+</header>
+<input type="file" id="fileInput" multiple accept=".wav,.wave,.bwf,.aif,.aiff,.flac,.ogg,.mp3,audio/*" hidden>
+
+<div id="empty" class="empty">
+  <h1>Metadados de SFX, sem o trabalho chato.</h1>
+  <p>A IA ouve cada som e sugere <b>CatID UCS</b>, <b>FXName</b>, <b>Description</b> e
+    <b>Keywords</b>. Tu ouves, confirmas ou corriges, e gravas tudo dentro dos ficheiros.</p>
+  <div class="dropzone" id="dropzone">
+    <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14"/></svg>
+    <div class="dz-title">Arrasta os teus sons para aqui</div>
+    <div class="muted">WAV, AIFF, FLAC, OGG ou MP3 · ou</div>
+    <button class="primary big" id="btnUpload2">Escolher ficheiros</button>
+  </div>
+  <p class="muted small-gap">Já tens uma biblioteca organizada em pastas?
+    <button id="btnFolder2">Abrir uma pasta</button></p>
+  <div id="recentBox" class="recent"></div>
+</div>
+
+<div id="dropOverlay" class="drop-overlay hidden"><div>Larga os sons para os carregar</div></div>
+
+<main id="mainView" class="main hidden">
+  <section class="list-pane">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Procurar nome, CatID, descrição, keywords…">
+      <div class="filters" id="filters">
+        <button data-f="all" class="on">Todos <span></span></button>
+        <button data-f="sugerido">Por rever <span></span></button>
+        <button data-f="revisto">Revistos <span></span></button>
+        <button data-f="gravado">Gravados <span></span></button>
+        <button data-f="novo">Por analisar <span></span></button>
+        <button data-f="erro">Erros <span></span></button>
+      </div>
+    </div>
+    <div class="selbar">
+      <label><input type="checkbox" id="selAll"> <span id="selCount">0 selecionados</span></label>
+      <span id="accuracy" class="accuracy hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
+      <button id="btnBulk" class="small" disabled>Editar selecionados…</button>
+      <button id="btnApproveSel" class="small" disabled>Aprovar selecionados</button>
+    </div>
+    <div class="table-wrap">
+      <table class="files">
+        <thead><tr>
+          <th class="c-chk"></th><th class="c-st"></th><th>Ficheiro</th><th class="c-dur">Dur.</th>
+          <th class="c-cat">CatID</th><th>FXName</th><th>Description</th><th class="c-conf" title="Confiança da IA na categoria">IA</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="detail-pane" id="detail">
+    <div class="placeholder">Escolhe um som da lista.</div>
+  </section>
+</main>
+
+<!-- Navegador de pastas -->
+<div class="modal hidden" id="folderModal">
+  <div class="dialog wide">
+    <h2>Abrir pasta de sons</h2>
+    <div class="pathrow">
+      <button id="fmUp" title="Pasta acima">Acima</button>
+      <input id="fmPath" placeholder="Cola aqui um caminho, ex.: D:\SFX\Portas">
+      <button id="fmGo">Ir</button>
+    </div>
+    <div class="fm-list" id="fmList"></div>
+    <div class="dialog-foot">
+      <span id="fmInfo" class="muted"></span>
+      <div class="spacer"></div>
+      <button data-close>Cancelar</button>
+      <button class="primary" id="fmOpen">Abrir esta pasta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dados da biblioteca -->
+<div class="modal hidden" id="defaultsModal">
+  <div class="dialog">
+    <h2>Dados da biblioteca</h2>
+    <p class="muted">Aplicam-se a todos os sons desta pasta. Os campos já preenchidos num som não são alterados.</p>
+    <div class="grid2" id="defaultsForm"></div>
+    <label class="check"><input type="checkbox" id="defApply" checked> Preencher já os sons que têm estes campos vazios</label>
+    <label class="check"><input type="checkbox" id="defTranslate" checked> Ditado por voz: traduzir para inglês a Description, o FXName e as Keywords (podes falar em português)</label>
+    <div class="dialog-foot">
+      <div class="spacer"></div>
+      <button data-close>Cancelar</button>
+      <button class="primary" id="defSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edição em lote -->
+<div class="modal hidden" id="bulkModal">
+  <div class="dialog">
+    <h2>Editar <span id="bulkCount"></span> sons</h2>
+    <p class="muted">Só os campos que marcares são alterados.</p>
+    <div id="bulkForm" class="bulk-form"></div>
+    <div class="dialog-foot">
+      <div class="spacer"></div>
+      <button data-close>Cancelar</button>
+      <button class="primary" id="bulkSave">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gravar -->
+<div class="modal hidden" id="writeModal">
+  <div class="dialog">
+    <h2>Gravar metadados nos ficheiros</h2>
+    <div class="radio-list">
+      <label><input type="radio" name="wscope" value="revisto" checked> Sons <b>revistos</b> ainda não gravados (<span id="wcRev">0</span>)</label>
+      <label><input type="radio" name="wscope" value="sel"> Sons <b>selecionados</b> (<span id="wcSel">0</span>)</label>
+      <label><input type="radio" name="wscope" value="all"> <b>Todos</b> os sons analisados (<span id="wcAll">0</span>)</label>
+    </div>
+    <label class="check"><input type="checkbox" id="wBackup" checked> Guardar cópia do original antes de alterar (em <code>.sfxtagger/backup</code>)</label>
+    <label class="check"><input type="checkbox" id="wRename"> Renomear ficheiros para o padrão UCS <code class="muted">CatID_FXName_CreatorID_SourceID.wav</code></label>
+    <p class="warn" id="wWarn"></p>
+    <div class="dialog-foot">
+      <div class="spacer"></div>
+      <button data-close>Cancelar</button>
+      <button class="primary" id="wGo">Gravar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Treinar a IA -->
+<div class="modal hidden" id="knowledgeModal">
+  <div class="dialog wide">
+    <h2>Treinar a IA</h2>
+    <p class="muted">A IA aprende com os sons que confirmas, e passa a reconhecer melhor sons parecidos.
+      O que ela aprende pode ser exportado e juntado ao de colegas. Só são partilhadas as
+      impressões digitais dos sons e as categorias, nunca o áudio.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <h3>Ensinar</h3>
+          <p>Ouve cada som e confirma a categoria certa: <b>Confirmar e seguinte</b>
+            (<span class="kbd" id="kbMod">Ctrl</span>+Enter). Se a IA errou, escolhe a certa antes de confirmar.
+            Ideal: pelo menos 5 sons de cada tipo de som.</p>
+          <div class="train-progress"><div class="bar"><div id="kbBar"></div></div><span id="kbCount"></span></div>
+          <button class="primary" id="kbStart">Começar a treinar</button>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <h3>Exportar</h3>
+          <p>Cria um ficheiro <code>.sfxk</code> pequeno com tudo o que a tua IA aprendeu. Envia-o a quem
+            coordena o projeto (email, WhatsApp, Drive…). Podes exportar quantas vezes quiseres:
+            quem recebe só junta o que for novo.</p>
+          <a class="btn primary" id="kbExport" href="/api/knowledge/export">Exportar o que a IA aprendeu</a>
+          <span class="muted small" id="kbLastExport"></span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <h3>Importar</h3>
+          <p>Recebeste um <code>.sfxk</code> de um colega? Junta-o ao teu e a tua IA fica a saber o que a dele sabe.</p>
+          <button id="kbImport">Importar ficheiro de um colega…</button>
+          <input type="file" id="kbFile" accept=".sfxk" hidden>
+          <div id="kbResult" class="kb-result hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <details class="kb-details"><summary>Estatísticas: quem contribuiu e o que a IA mais confunde</summary>
+      <div id="kbStats" class="kb-stats"></div>
+    </details>
+    <div class="dialog-foot">
+      <div class="spacer"></div>
+      <button data-close>Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Primeira utilização: instalação automática da IA -->
+<div class="modal hidden" id="setupModal" data-locked>
+  <div class="dialog">
+    <h2 id="setupTitle">A preparar o SFX Tagger</h2>
+    <p class="muted">Só acontece na primeira vez. Estão a ser instalados os componentes de IA,
+      o que pode demorar 5 a 15 minutos, conforme a internet. Podes deixar esta janela aberta e voltar mais tarde.</p>
+    <div class="setup-step"><span class="spinner" id="setupSpin"></span><span id="setupStep">A preparar…</span></div>
+    <div class="muted small" id="setupElapsed"></div>
+    <details class="setup-log"><summary>Detalhes técnicos</summary><pre id="setupLog"></pre></details>
+    <div class="dialog-foot hidden" id="setupErrFoot">
+      <span class="warn" id="setupErr"></span>
+      <div class="spacer"></div>
+      <button class="primary" id="setupRetry">Tentar de novo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="quitModal" data-locked>
+  <div class="dialog">
+    <h2>O SFX Tagger foi fechado</h2>
+    <p class="muted">Podes fechar este separador. Para voltar a usar a app, abre de novo o SFX Tagger.</p>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<audio id="player" preload="auto"></audio>
+<script src="/static/app.js"></script>
+</body>
+</html>

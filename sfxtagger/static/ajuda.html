@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFX Tagger · Ajuda</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { overflow: auto; display: block; }
+  .doc { max-width: 780px; margin: 0 auto; padding: 28px 16px 60px; font-size: 14.5px; line-height: 1.6; }
+  .doc h1 { font-size: 26px; margin: 0 0 4px; }
+  .doc h2 { font-size: 19px; margin: 36px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .doc h3 { font-size: 15px; margin: 20px 0 6px; }
+  .doc p, .doc li { color: var(--text); }
+  .doc .lead { color: var(--muted); font-size: 15.5px; margin-bottom: 18px; }
+  .doc ol, .doc ul { padding-left: 22px; }
+  .doc li { margin-bottom: 6px; }
+  .doc table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 14px; }
+  .doc th, .doc td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
+  .doc th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .doc .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; }
+  .doc .toc a { color: var(--text); }
+  .doc a { color: var(--accent); }
+  .doc .note { background: var(--sel); border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0; }
+  .flow .box { flex: 1 1 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .flow .box b { display: block; color: var(--accent); margin-bottom: 3px; }
+  .flow .arrow { align-self: center; color: var(--muted); font-size: 18px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  @media (max-width: 600px) { .flow .arrow { display: none; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="top">
+    <h1>Como funciona o SFX Tagger</h1>
+    <a class="btn" href="/">Voltar à app</a>
+  </div>
+  <p class="lead">Uma ferramenta que ouve os teus efeitos sonoros, sugere os metadados no padrão UCS,
+    deixa-te confirmar ou corrigir, e grava tudo dentro dos ficheiros WAV. Corre inteiramente no
+    teu computador.</p>
+
+  <div class="toc">
+    <a href="#ideia">1. A ideia em 30 segundos</a> ·
+    <a href="#passos">2. Passo a passo</a> ·
+    <a href="#treinar">3. Treinar a IA e partilhar</a> ·
+    <a href="#dentro">4. O que acontece por dentro</a> ·
+    <a href="#ficheiros">5. O que é gravado nos ficheiros</a> ·
+    <a href="#atalhos">6. Atalhos</a> ·
+    <a href="#precisao">7. Quão certa é a IA</a> ·
+    <a href="#privacidade">8. Privacidade</a> ·
+    <a href="#problemas">9. Problemas comuns</a>
+  </div>
+
+  <h2 id="ideia">1. A ideia em 30 segundos</h2>
+  <div class="flow">
+    <div class="box"><b>Carregas</b>os teus sons (WAV, AIFF, FLAC, OGG, MP3)</div>
+    <div class="arrow">→</div>
+    <div class="box"><b>A IA ouve</b>e sugere categoria UCS, nome, descrição e keywords</div>
+    <div class="arrow">→</div>
+    <div class="box"><b>Tu confirmas</b>ou corriges, e podes ditar por voz</div>
+    <div class="arrow">→</div>
+    <div class="box"><b>Gravas</b>os metadados dentro dos WAV e exportas</div>
+  </div>
+  <p>Cada som que confirmas também <b>ensina a IA</b>: da próxima vez, sons parecidos são reconhecidos
+    melhor. Esse conhecimento pode ser exportado e juntado ao de colegas.</p>
+
+  <h2 id="passos">2. Passo a passo</h2>
+  <ol>
+    <li><b>Carregar os sons.</b> Arrasta os ficheiros para a janela (ou "Carregar sons"). A app trabalha
+      numa cópia em <code>Documentos/SFX Tagger</code>, por isso os teus originais nunca são tocados.
+      Alternativa: "Abrir uma pasta" trabalha diretamente numa biblioteca que já tenhas organizada.</li>
+    <li><b>Biblioteca.</b> Preenche uma vez os dados comuns: o teu nome (Designer), as tuas iniciais
+      (CreatorID), o nome do projeto (SourceID), a biblioteca, o microfone… Estes dados vão para todos os sons.</li>
+    <li><b>Analisar.</b> Com sons arrastados, a análise começa sozinha. Demora cerca de 1 segundo por som.</li>
+    <li><b>Rever.</b> Cada som toca quando o escolhes. À direita vês:
+      <ul>
+        <li><b>Sugestões da IA:</b> as 5 categorias UCS mais prováveis, com percentagem. Teclas 1 a 5 escolhem.</li>
+        <li><b>O que ouves?:</b> opcional. Escreve ou dita o que o som é (ex.: <i>iron gate slam</i>) e a IA reordena as sugestões.</li>
+        <li><b>CatID:</b> pesquisa livre nas ~750 categorias UCS (ex.: "door wood", "whoosh").</li>
+        <li><b>FXName, Description, Keywords, Location:</b> rascunhos da IA que podes editar ou ditar.</li>
+      </ul>
+      Quando estiver certo: <b>Confirmar e seguinte</b> (Ctrl+Enter, ou Cmd+Enter no Mac).</li>
+    <li><b>Gravar nos ficheiros.</b> Escreve os metadados dentro dos WAV. Opcional: renomear para o padrão
+      UCS <code>CatID_FXName_CreatorID_SourceID.wav</code>. Deixa ativa a cópia de segurança.</li>
+    <li><b>Exportar.</b> Sons com metadados (ZIP), metadados em folha de cálculo (CSV) ou o relatório
+      de acertos e erros da IA.</li>
+  </ol>
+  <div class="note"><b>Ditado por voz:</b> clica no microfone ao lado de um campo, fala e clica de novo. Podes
+    falar em português: a Description é traduzida para inglês automaticamente (isto muda-se em "Biblioteca").
+    Na primeira vez o browser pede acesso ao microfone e a app descarrega o modelo de voz (~1 GB).</div>
+
+  <h2 id="treinar">3. Treinar a IA e partilhar</h2>
+  <p>Abre <b>Treinar a IA</b> no topo. O número no botão mostra quantos sons já ensinaste.</p>
+  <div class="flow">
+    <div class="box"><b>1. Ensinar</b>"Começar a treinar" mostra os sons por rever. Confirma a categoria certa de cada um.</div>
+    <div class="arrow">→</div>
+    <div class="box"><b>2. Exportar</b>Gera um ficheiro <code>.sfxk</code> com o que a tua IA aprendeu. Envia-o a quem coordena.</div>
+    <div class="arrow">→</div>
+    <div class="box"><b>3. Importar</b>Quem recebe junta-o ao seu. A IA dele passa a saber o que a tua sabe.</div>
+  </div>
+  <ul>
+    <li><b>O que ensina mais:</b> confirmar sons em que a IA <i>errou</i> (corrigindo-os) e ter pelo menos
+      5 sons de cada tipo de som.</li>
+    <li><b>O ficheiro .sfxk é pequeno</b> (cerca de 2 KB por som) e não tem áudio: só as "impressões digitais"
+      dos sons e as categorias.</li>
+    <li><b>Podes exportar sempre que quiseres.</b> Importar o mesmo ficheiro duas vezes não duplica nada.</li>
+    <li>Depois de importar, carrega em "Atualizar as sugestões dos sons por rever" para aplicar já o novo conhecimento.</li>
+    <li>Em "Estatísticas" vês quem contribuiu, a percentagem de acerto e o que a IA mais confunde. Se um
+      colega etiquetou mal, podes remover os exemplos dele.</li>
+  </ul>
+
+  <h2 id="dentro">4. O que acontece por dentro</h2>
+  <h3>Ouvir</h3>
+  <p>A app usa dois modelos de IA chamados <b>CLAP</b>, que aprenderam a ligar sons a frases. Cada som é
+    transformado numa "impressão digital" (512 números). Cada uma das ~750 categorias UCS é descrita por várias
+    frases (nome, explicação oficial, sinónimos), que também têm impressão digital. A IA sugere as categorias
+    cujas frases estão mais "perto" do som. Os dois modelos votam e a opinião é combinada.</p>
+  <h3>Pistas extra</h3>
+  <ul>
+    <li><b>Nome do ficheiro e da pasta:</b> <code>porta_madeira_ranger.wav</code> ajuda muito; <code>ZOOM0001.wav</code> não diz nada.</li>
+    <li><b>O que ouves?:</b> a tua descrição é usada como pista forte.</li>
+    <li><b>Memória:</b> sons parecidos com outros já confirmados recebem a categoria desses, com mais peso quanto mais parecidos forem.</li>
+  </ul>
+  <h3>Análise técnica</h3>
+  <p>Duração, taxa de amostragem, bits, canais, loudness (LUFS), pico, clipping, DC offset, e o tipo de som:
+    one-shot, vários takes ou ambiente contínuo. Estes dados aparecem por cima da forma de onda.</p>
+  <h3>Rascunhos</h3>
+  <p>O FXName segue a convenção UCS (substantivo + especificação + ação, ex.: "Glass Break Shatter"). A Description
+    é um rascunho factual: o contexto (que porta, onde, como) é contigo, por escrito ou por voz.</p>
+
+  <h2 id="ficheiros">5. O que é gravado nos ficheiros</h2>
+  <table>
+    <tr><th>Bloco</th><th>Campos</th><th>Quem lê</th></tr>
+    <tr><td>iXML (USER)</td><td>CATID, CATEGORY, SUBCATEGORY, FXNAME, DESCRIPTION, KEYWORDS, NOTES, LIBRARY, DESIGNER, MICROPHONE, RECMEDIUM, LOCATION, CREATORID, SOURCEID</td><td>bases de dados de SFX com suporte UCS</td></tr>
+    <tr><td>BWF bext</td><td>Description (até 256 caracteres, sem acentos), Designer</td><td>praticamente todos os DAW</td></tr>
+    <tr><td>RIFF INFO</td><td>Título, comentário, keywords, género, artista, álbum</td><td>Reaper, sistema operativo, ffmpeg</td></tr>
+  </table>
+  <p>O áudio <b>nunca</b> é alterado, só os blocos de metadados. O progresso fica numa pasta escondida
+    <code>.sfxtagger</code> dentro da biblioteca, por isso podes fechar e continuar mais tarde.</p>
+
+  <h2 id="atalhos">6. Atalhos de teclado</h2>
+  <table>
+    <tr><th>Tecla</th><th>Ação</th></tr>
+    <tr><td>Setas para cima / baixo</td><td>som anterior / seguinte</td></tr>
+    <tr><td>Espaço</td><td>tocar / parar</td></tr>
+    <tr><td>1 a 5</td><td>escolher uma das sugestões de categoria</td></tr>
+    <tr><td>Ctrl+Enter (Cmd+Enter no Mac)</td><td>confirmar e passar ao seguinte</td></tr>
+    <tr><td>/</td><td>procurar na lista</td></tr>
+    <tr><td>Esc</td><td>sair de um campo de texto</td></tr>
+    <tr><td>Shift+clique / Ctrl+clique</td><td>selecionar vários sons (para editar em lote)</td></tr>
+  </table>
+
+  <h2 id="precisao">7. Quão certa é a IA</h2>
+  <p>Medido em 800 gravações reais etiquetadas (benchmark ESC-50 convertido para UCS), sem pistas no nome:</p>
+  <ul>
+    <li>a 1.ª sugestão está certa <b>77%</b> das vezes; a certa está entre as 5 sugestões <b>91%</b> das vezes;</li>
+    <li>com sons confirmados na memória, sons parecidos chegam a <b>83%</b> com 1 exemplo por tipo de som e a
+      <b>91%</b> com 5 exemplos.</li>
+  </ul>
+  <p>Sons desenhados ou abstratos (UI, sci-fi, magia) são os mais difíceis, por isso revê-os com atenção.</p>
+
+  <h2 id="privacidade">8. Privacidade</h2>
+  <p>Tudo corre no teu computador: a análise, o reconhecimento de voz e a memória. Os sons e a tua voz não são
+    enviados para lado nenhum. A internet só é usada na instalação e para descarregar os modelos na primeira vez.
+    O ficheiro <code>.sfxk</code> só sai do teu computador se tu o enviares.</p>
+
+  <h2 id="problemas">9. Problemas comuns</h2>
+  <ul>
+    <li><b>Um som não toca:</b> formatos especiais (multicanal, 192 kHz, 32-bit float) são convertidos para
+      pré-escuta, o que pode demorar um pouco na primeira vez.</li>
+    <li><b>O microfone não funciona:</b> autoriza o microfone nas definições do browser (ícone ao lado do endereço).</li>
+    <li><b>A IA sugere sempre a mesma categoria errada:</b> corrige alguns desses sons e confirma. A memória aprende.</li>
+    <li><b>Mac: "SFX Tagger não foi aberto":</b> Definições do Sistema → Privacidade e Segurança → "Abrir na mesma".</li>
+    <li><b>Desinstalar (Mac):</b> apaga a app e a pasta <code>~/Library/Application Support/SFXTagger</code>.</li>
+  </ul>
+</div>
+</body>
+</html>

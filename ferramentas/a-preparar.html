@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A preparar o SFX Tagger</title>
+<style>
+  :root { --bg: #f4f5f7; --panel: #fff; --text: #1d2127; --muted: #69717d; --line: #dfe2e7; --accent: #c97a0a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121417; --panel: #1a1d22; --text: #e6e8eb; --muted: #8b939e; --line: #2e333a; --accent: #f0a63a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: var(--bg); color: var(--text); font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif; padding: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px 30px; max-width: 520px; width: 100%; }
+  h1 { font-size: 21px; margin: 0 0 6px; }
+  p { color: var(--muted); margin: 0 0 14px; }
+  .row { display: flex; align-items: center; gap: 12px; font-weight: 600; margin: 18px 0 8px; }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent);
+          animation: s .9s linear infinite; flex: none; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  ol { color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
+  .slow { display: none; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: rgba(201,122,10,.12); font-size: 13.5px; }
+  code { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>A preparar o SFX Tagger</h1>
+  <p>Primeira utilização: a app está a instalar o que precisa. <b>Não é preciso clicar em nada.</b>
+     Quando estiver pronta, a app abre sozinha num separador novo; depois podes fechar esta página.</p>
+  <div class="row"><span class="spin"></span><span>A instalar o Python e as bibliotecas (1 a 2 minutos)…</span></div>
+  <ol>
+    <li>Python e bibliotecas: 1 a 2 minutos</li>
+    <li>Depois, na própria app: componentes de IA, 5 a 15 minutos (vês o progresso)</li>
+  </ol>
+  <div class="slow" id="lento">Ainda não abriu? Confirma que estás ligado à internet e espera mais um pouco.
+    Se aparecer uma janela de erro, carrega em "Abrir registo" e envia esse ficheiro a quem te deu a app.
+    O registo está em <code>~/Library/Application Support/SFXTagger/registo.log</code>.</div>
+</div>
+<script>
+  // Esta página só informa: é a app que abre o separador dela quando estiver pronta.
+  setTimeout(function () { document.getElementById("lento").style.display = "block"; }, 6 * 60 * 1000);
+</script>
+</body>
+</html>

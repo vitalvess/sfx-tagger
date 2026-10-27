@@ -1,0 +1,74 @@
+SFX TAGGER - COMECAR AQUI
+=========================
+
+Ferramenta que ouve os teus efeitos sonoros e sugere os metadados UCS
+(CatID, FXName, Description, Keywords). Tudo corre no teu computador:
+os sons nao sao enviados para lado nenhum.
+
+Precisas de: cerca de 3 GB livres e internet SO durante a instalacao.
+
+
+WINDOWS
+-------
+1. Instala o Python 3.12:  https://www.python.org/downloads/
+   IMPORTANTE: na primeira janela do instalador marca
+   "Add python.exe to PATH".
+2. Extrai este zip para uma pasta (ex.: Documentos\SFXTagger).
+   Nao corras os ficheiros de dentro do zip sem o extrair primeiro.
+3. Duplo clique em  instalar_windows.bat
+   (so na primeira vez; demora alguns minutos).
+   Se o Windows mostrar "O Windows protegeu o seu PC":
+   clica em "Mais informacoes" > "Executar mesmo assim".
+4. Para usar: duplo clique em  iniciar_windows.bat
+   A app abre no browser. Deixa a janela preta aberta enquanto trabalhas.
+
+
+MAC
+---
+1. Instala o Python 3.12:  https://www.python.org/downloads/
+   (descarrega o "macOS 64-bit universal2 installer" e segue os passos)
+2. Duplo clique no zip para o extrair. Move a pasta SFXTagger para
+   Documentos ou Aplicacoes (nao a deixes nas Transferencias).
+3. Abre a app Terminal (Cmd+Espaco, escreve "Terminal", Enter).
+   Escreve  bash  seguido de um espaco, ARRASTA o ficheiro
+   instalar_mac.command  para dentro da janela do Terminal e carrega Enter.
+   Demora alguns minutos e so e preciso uma vez.
+4. Para usar: duplo clique em  iniciar_mac.command
+   A app abre no browser. Deixa a janela do Terminal aberta enquanto trabalhas.
+
+   Se o Mac disser que "nao pode ser aberto porque e de um programador
+   nao identificado": clica com o botao direito no ficheiro > Abrir > Abrir.
+   Se perguntar se o Terminal pode aceder a Documentos/Secretaria: Permitir.
+
+   No Mac os atalhos usam Cmd em vez de Ctrl (ex.: Cmd+Enter).
+
+
+COMO USAR (resumo)
+------------------
+1. Arrasta os teus sons para a janela da app (WAV, AIFF, FLAC, OGG, MP3).
+   A IA analisa-os sozinha. (Tambem podes usar "Abrir uma pasta".)
+2. Biblioteca   -> o teu nome, iniciais (CreatorID), nome da biblioteca
+3. Ouve cada som (toca sozinho; setas para mudar de som):
+   - se a sugestao da IA estiver certa: Ctrl+Enter / Cmd+Enter no Mac
+     (Confirmar e seguinte)
+   - se nao: escolhe outra com as teclas 1-5 ou pesquisa no campo CatID
+   - opcional: escreve em "O que ouves?" o que o som realmente e
+   - ditado: clica no microfone ao lado de Description/Location/Notes,
+     fala (pode ser em portugues) e clica de novo para terminar
+4. Gravar       -> escreve os metadados dentro dos WAV
+5. Exportar     -> "Relatorio da IA" mostra quantas vezes a IA acertou;
+                   "Sons com metadados (ZIP)" descarrega os WAV etiquetados.
+
+PARTILHAR O QUE A IA APRENDEU
+-----------------------------
+Cada som confirmado ensina a IA. No botao "Conhecimento":
+- "Exportar o meu conhecimento" cria um ficheiro .sfxk (pequeno, sem audio)
+- envia-o aos colegas; eles fazem "Importar conhecimento de um colega"
+  e depois "Atualizar as sugestoes dos sons por rever".
+
+Os sons arrastados ficam numa copia em Documentos\SFX Tagger;
+os teus ficheiros originais nunca sao alterados.
+
+Guia completo: ficheiro LEIA-ME.md (abre com o Bloco de Notas).
+
+Se a app nao abrir sozinha no browser, vai a:  http://127.0.0.1:8765
