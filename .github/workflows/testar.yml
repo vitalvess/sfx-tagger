@@ -34,8 +34,24 @@ jobs:
       - name: Construir a app (zip igual ao que se envia)
         run: |
           pip install numpy
-          mkdir -p dist
-          python ferramentas/build_mac_app.py dist
+          mkdir -p dist montagem
+          # executável nativo universal (chip M + Intel)
+          clang -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -O2             -o montagem/sfxtagger ferramentas/mac/lancador.c
+          python ferramentas/build_mac_app.py montagem --lancador montagem/sfxtagger
+          # assinatura ad hoc: sem ela o macOS 15 não mostra "Abrir na mesma"
+          ditto -x -k montagem/*.zip montagem/app
+          codesign --force --deep --sign - "montagem/app/SFX Tagger.app"
+          codesign --verify --deep --strict --verbose=2 "montagem/app/SFX Tagger.app"
+          lipo -info "montagem/app/SFX Tagger.app/Contents/MacOS/sfxtagger"
+          NOME="$(basename montagem/*.zip)"
+          ditto -c -k --norsrc montagem/app "dist/$NOME"
+
+      - name: Guardar o zip para enviar aos colegas
+        if: matrix.os == 'macos-15'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFX-Tagger-Mac
+          path: dist/*.zip
 
       - name: Instalar como um colega (zip descarregado, em quarentena)
         run: |
@@ -43,7 +59,11 @@ jobs:
           ditto -x -k dist/*.zip extraido
           xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "extraido/SFX Tagger.app"
           mv "extraido/SFX Tagger.app" /Applications/
-          # o comando que damos aos colegas para passar o Gatekeeper
+          # a assinatura sobreviveu ao zip?
+          codesign --verify --deep --strict "/Applications/SFX Tagger.app"
+          # o que o Gatekeeper diz (rejeitado é o esperado: não é notarizada pela Apple)
+          spctl --assess --type execute -vv "/Applications/SFX Tagger.app" || true
+          # o equivalente a "Abrir na mesma" (no CI não há quem clique)
           xattr -cr "/Applications/SFX Tagger.app"
           ls -la "/Applications/SFX Tagger.app/Contents/MacOS"
 

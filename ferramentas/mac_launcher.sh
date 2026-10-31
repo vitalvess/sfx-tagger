@@ -9,7 +9,10 @@ if [ "$(uname -m)" = "x86_64" ] && [ "$(/usr/sbin/sysctl -n hw.optional.arm64 2>
   exec /usr/bin/arch -arm64 /bin/bash "$0" "$@"
 fi
 
-RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+# O script está em Contents/Resources (lançado pelo executável nativo) ou, em versões
+# antigas, em Contents/MacOS
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(basename "$HERE")" = "MacOS" ]; then RES="$(cd "$HERE/../Resources" && pwd)"; else RES="$HERE"; fi
 SUP="$HOME/Library/Application Support/SFXTagger"
 LOG="$SUP/registo.log"
 UVDIR="$SUP/uv"

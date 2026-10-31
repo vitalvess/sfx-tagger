@@ -1,7 +1,11 @@
 """Gera 'SFX Tagger (Mac).zip' com a app 'SFX Tagger.app' pronta a abrir.
 
 Pode correr em qualquer sistema (não precisa de um Mac):
-    python ferramentas/build_mac_app.py [pasta_de_saida]
+    python ferramentas/build_mac_app.py [pasta_de_saida] [--lancador executavel]
+
+A versão que se envia aos colegas é feita num Mac (GitHub Actions): leva um executável
+nativo (ferramentas/mac/lancador.c) e uma assinatura ad hoc, para o macOS mostrar
+"Abrir na mesma". Sem --lancador o executável é o próprio script (só para testes).
 
 A app não leva o Python nem a IA lá dentro (seria >1 GB e diferente para Mac Intel
 e Apple Silicon): na primeira abertura instala tudo sozinha a partir da internet.
@@ -61,6 +65,10 @@ LEIA_ME = """SFX TAGGER PARA MAC
 
    macOS 14 ou anterior:
      - Clica com o botao direito em SFX Tagger > Abrir > Abrir.
+
+   Se nao aparecer "Abrir na mesma", abre o Terminal, cola esta linha e
+   carrega Enter (faz o mesmo que autorizar):
+     xattr -cr "/Applications/SFX Tagger.app"
 
 3. Na primeira abertura a app instala tudo sozinha. Precisa de internet e
    de cerca de 3 GB livres:
@@ -164,7 +172,7 @@ def _add_dir(z: zipfile.ZipFile, name: str) -> None:
     z.writestr(info, b"")
 
 
-def build(out_dir: Path) -> Path:
+def build(out_dir: Path, lancador: Path | None = None) -> Path:
     out = out_dir / f"SFX Tagger (Mac) v{__version__}.zip"
     out.unlink(missing_ok=True)
     launcher = (ROOT / "ferramentas" / "mac_launcher.sh").read_bytes().replace(b"\r\n", b"\n")
@@ -174,7 +182,11 @@ def build(out_dir: Path) -> Path:
             _add_dir(z, d)
         _add(z, f"{c}/Info.plist", INFO_PLIST.encode())
         _add(z, f"{c}/PkgInfo", b"APPL????")
-        _add(z, f"{c}/MacOS/{EXE}", launcher, 0o755)
+        if lancador:
+            _add(z, f"{c}/MacOS/{EXE}", lancador.read_bytes(), 0o755)
+            _add(z, f"{c}/Resources/sfxtagger.sh", launcher, 0o755)
+        else:
+            _add(z, f"{c}/MacOS/{EXE}", launcher, 0o755)
         _add(z, f"{c}/Resources/AppIcon.icns", _icns())
         _add(z, f"{c}/Resources/a-preparar.html",
              (ROOT / "ferramentas" / "a-preparar.html").read_bytes())
@@ -189,8 +201,12 @@ def build(out_dir: Path) -> Path:
 
 
 if __name__ == "__main__":
-    dest = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent
-    path = build(dest)
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("pasta", nargs="?", default=str(ROOT.parent))
+    ap.add_argument("--lancador", type=Path)
+    a = ap.parse_args()
+    path = build(Path(a.pasta), a.lancador)
     with zipfile.ZipFile(path) as z:
         assert z.testzip() is None
         print(path, f"{path.stat().st_size // 1024} KB, {len(z.namelist())} entradas")
