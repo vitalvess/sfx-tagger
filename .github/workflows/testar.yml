@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-15, macos-15-intel]   # Sonoma M1, Sequoia M1, Sequoia Intel
+        os: [macos-15, macos-26, macos-15-intel]   # Sequoia M1, Tahoe M1, Sequoia Intel
     steps:
       - uses: actions/checkout@v4
 
