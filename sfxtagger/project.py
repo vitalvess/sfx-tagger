@@ -30,7 +30,8 @@ DEFAULT_KEYS = ["library", "designer", "microphone", "rec_medium", "location",
 
 FXNAME_MAX = 30
 SEGMENT_MIN_DURATION = 15.0   # gravações mais longas são ouvidas também por partes
-SEGMENT_MAX = 24
+SEGMENT_MAX = 10
+SEGMENT_SECONDS = 10.0
 
 
 def _now() -> float:
@@ -291,7 +292,6 @@ class Project:
                              helper_emb=emb2, clf=self._classifier())
         sug["name_words"] = words
         sug["folder_words"] = folder
-        segments = self._segments(loaded.mono, tech, tagger)
         with self.lock:
             self.embeddings[rec["id"]] = emb
             if emb2 is not None:
@@ -300,8 +300,10 @@ class Project:
             self._arrays_dirty = True
             rec["tech"] = tech
             rec["suggestion"] = sug
-            rec["segments"] = segments
-            rec["mixed"] = _is_mixed(segments)
+            # as partes são calculadas quando alguém abre o som (segments_for): analisar a
+            # biblioteca inteira por partes deixava a análise ~2x mais lenta
+            rec.pop("segments", None)
+            rec.pop("mixed", None)
             rec["error"] = None
             self._redraft(rec)
             if rec["status"] == "novo":
@@ -316,16 +318,42 @@ class Project:
                 rec["fields"][k] = ""
         self._fill_draft(rec)
 
+    def segments_for(self, rid: str) -> dict:
+        """Partes de uma gravação longa, calculadas na primeira vez que o som é aberto."""
+        rec = self.records[rid]
+        if "segments" not in rec and rec.get("tech"):
+            if (rec["tech"].get("duration") or 0) < SEGMENT_MIN_DURATION:
+                segments = []
+            else:
+                tagger = get_tagger()
+                tagger.ensure_loaded()
+                loaded = audio.load(self.abspath(rec))
+                segments = self._segments(loaded.mono, rec["tech"], tagger)
+            with self.lock:
+                rec["segments"] = segments
+                rec["mixed"] = _is_mixed(segments)
+                self.save()
+        return {"segments": rec.get("segments") or [], "mixed": rec.get("mixed", False)}
+
     def _segments(self, x: np.ndarray, tech: dict, tagger) -> list[dict]:
         """O que a IA ouve em cada parte de uma gravação longa (ambientes, vários takes)."""
         sr = audio.ANALYSIS_SR
         dur = len(x) / sr
         if dur < SEGMENT_MIN_DURATION:
             return []
+        # o modelo ouve sempre blocos de 10 s (um bloco de 2 s custa o mesmo): takes curtos
+        # seguidos juntam-se no mesmo bloco, e os ambientes vão em blocos de 10 s
         if tech.get("kind") == "takes" and tech.get("event_times"):
-            spans = [(s0, min(e0, s0 + 10.0)) for s0, e0 in tech["event_times"] if e0 - s0 >= 0.3]
+            spans: list[tuple[float, float]] = []
+            for s0, e0 in tech["event_times"]:
+                if e0 - s0 < 0.3:
+                    continue
+                if spans and e0 - spans[-1][0] <= SEGMENT_SECONDS:
+                    spans[-1] = (spans[-1][0], e0)
+                else:
+                    spans.append((s0, min(e0, s0 + SEGMENT_SECONDS)))
         else:
-            spans = [(t, min(t + 5.0, dur)) for t in np.arange(0, dur - 1.0, 5.0)]
+            spans = [(t, min(t + SEGMENT_SECONDS, dur)) for t in np.arange(0, dur - 2.0, SEGMENT_SECONDS)]
         if len(spans) > SEGMENT_MAX:   # gravação muito longa: partes espalhadas por todo o ficheiro
             pick = np.linspace(0, len(spans) - 1, SEGMENT_MAX).round().astype(int)
             spans = [spans[i] for i in pick]

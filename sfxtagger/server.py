@@ -440,6 +440,17 @@ def get_file(rid: str):
     return p.full_record(rid)
 
 
+@app.get("/api/segments/{rid}")
+def segments(rid: str):
+    p = project()
+    if rid not in p.records:
+        raise HTTPException(404)
+    try:
+        return p.segments_for(rid)
+    except OSError:
+        raise HTTPException(404, "Ficheiro não encontrado")
+
+
 @app.get("/api/similar/{rid}")
 def similar(rid: str):
     return project().similar(rid)
