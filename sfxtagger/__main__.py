@@ -59,6 +59,10 @@ def main() -> None:
     if not setup_ai.ai_installed():
         print("  Primeira utilização: a instalar os componentes de IA em segundo plano…")
         setup_ai.ensure_started()
+    else:
+        # carrega os modelos já, em segundo plano: a primeira análise não fica à espera
+        from .ai import get_tagger
+        threading.Thread(target=get_tagger().ensure_loaded, daemon=True).start()
 
     port = _free_port(args.port)
     url = f"http://127.0.0.1:{port}"

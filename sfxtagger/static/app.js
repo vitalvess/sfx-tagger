@@ -438,12 +438,7 @@ function renderDetail() {
   $("#btnGroup") && ($("#btnGroup").onclick = () => selectGroup(r));
   $("#btnSimilar") && ($("#btnSimilar").onclick = () => selectSimilar(r));
   $("#btnReanalyze").onclick = () => runAnalysis([r.id], true);
-  $$(".seg", el).forEach((b) => b.onclick = (e) => {
-    if (e.target.closest(".seg-use")) { setCatid(b.dataset.catid); return; }
-    const p = $("#player");
-    p.currentTime = +b.dataset.t;
-    p.play().catch(() => {});
-  });
+  loadSegments(r);
   $("#waveWrap").onclick = (e) => {
     const p = $("#player");
     if (!p.duration) return;
@@ -455,7 +450,39 @@ function renderDetail() {
   drawWave();
 }
 
+// Partes de gravações longas: calculadas pelo servidor na primeira vez que o som é aberto
+const SEGMENT_MIN_DURATION = 15;
+const SEG_PENDING = new Map();   // um só pedido por som, mesmo que o painel se redesenhe
 function segmentsHtml(r) {
+  if (r.segments === undefined && (r.tech?.duration || 0) >= SEGMENT_MIN_DURATION) {
+    return '<div id="segBox"><div class="section"><h3>Ao longo da gravação</h3><div class="note">A ouvir as partes da gravação…</div></div></div>';
+  }
+  return `<div id="segBox">${segmentsInner(r)}</div>`;
+}
+
+async function loadSegments(r) {
+  const box = $("#segBox");
+  if (!box) return;
+  if (r.segments === undefined && (r.tech?.duration || 0) >= SEGMENT_MIN_DURATION) {
+    try {
+      if (!SEG_PENDING.has(r.id)) SEG_PENDING.set(r.id, api(`/api/segments/${r.id}`));
+      const res = await SEG_PENDING.get(r.id).finally(() => SEG_PENDING.delete(r.id));
+      if (S.activeFull?.id !== r.id) return;
+      Object.assign(r, res);
+      const light = S.byId.get(r.id);
+      if (light) Object.assign(light, res);
+    } catch { box.innerHTML = ""; return; }
+  }
+  box.innerHTML = segmentsInner(r);
+  $$(".seg", box).forEach((b) => b.onclick = (e) => {
+    if (e.target.closest(".seg-use")) { setCatid(b.dataset.catid); return; }
+    const p = $("#player");
+    p.currentTime = +b.dataset.t;
+    p.play().catch(() => {});
+  });
+}
+
+function segmentsInner(r) {
   const segs = r.segments || [];
   if (segs.length < 2) return "";
   const items = segs.map((s) => {

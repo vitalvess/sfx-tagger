@@ -122,7 +122,8 @@ def main() -> None:
         print(f"    {rec['path']}: {rec['fields']['catid']} ({rec['fields']['fxname']}), "
               f"confiança {sug['confidence']['level']} · {rec['fields']['description']}")
     longo = next(r for r in recs if r["path"] == "longo.wav")
-    assert len(longo.get("segments") or []) >= 1, "a gravação longa não foi analisada por partes"
+    partes = api("GET", f"/api/segments/{longo['id']}", timeout=120)["segments"]
+    assert len(partes) >= 1, "a gravação longa não foi analisada por partes"
     serie = [r for r in recs if r["path"].startswith("Metal Hit")]
     assert serie[0]["group"] and serie[0]["group"] == serie[1]["group"], "a série não foi agrupada"
     print("OK  sugestões UCS, confiança, série e partes")
