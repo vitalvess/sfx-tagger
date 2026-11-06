@@ -1,3 +1,5 @@
+* text=auto eol=lf
 *.bat text eol=crlf
-*.sh text eol=lf
 *.npy binary
+*.npz binary
+*.png binary

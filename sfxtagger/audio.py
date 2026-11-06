@@ -138,6 +138,11 @@ def analyze(audio: LoadedAudio) -> dict:
     res["events"] = len(events)
     res["event_times"] = [(round(s, 2), round(e, 2)) for s, e in events[:200]]
 
+    # cauda: quanto tempo o som demora a cair 30 dB depois do pico (reverberação, decaimento)
+    peak_i = int(np.argmax(db))
+    above = np.where(db[peak_i:] > db[peak_i] - 30)[0]
+    res["tail_s"] = round(float(above[-1]) * 0.01, 2) if len(above) else 0.0
+
     crest = _db(audio.peak) - _db(rms)
     res["crest_db"] = round(crest, 1)
     dyn = float(np.percentile(db, 95) - np.percentile(db, 10))

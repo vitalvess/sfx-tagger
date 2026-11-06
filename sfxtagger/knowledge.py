@@ -1,8 +1,10 @@
 """Memória de exemplos: o que a IA aprende com os sons confirmados por pessoas.
 
 Cada som confirmado vira um "exemplo": a impressão digital do som (embedding CLAP de
-512 números, sem o áudio) + a categoria certa + o que a IA tinha sugerido. Os exemplos:
-  * melhoram as sugestões logo a seguir (sons parecidos com exemplos confirmados);
+512 números de cada um dos dois modelos, sem o áudio) + a categoria certa + o que a IA
+tinha sugerido. Os exemplos:
+  * melhoram as sugestões logo a seguir: sons parecidos com exemplos confirmados (kNN) e
+    um classificador treinado com todos eles (classifier.py);
   * podem ser exportados para um ficheiro .sfxk e importados noutro computador,
     para que o trabalho de cada colega melhore a IA de todos.
 
@@ -21,7 +23,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 
-from . import __version__, paths
+from . import __version__, classifier, paths
 
 FORMAT = "sfxtagger-conhecimento"
 FORMAT_VERSION = 1
@@ -39,6 +41,9 @@ class Knowledge:
         self.lock = threading.RLock()
         self.meta: dict[str, dict] = {}      # id -> dados do exemplo
         self.emb: dict[str, np.ndarray] = {}  # id -> embedding (float32 normalizado)
+        self.emb2: dict[str, np.ndarray] = {}  # id -> embedding do segundo modelo (se houver)
+        self._clf = None
+        self._clf_ready = False
         self._matrix = None
         self._ids: list[str] = []
         self._timer: threading.Timer | None = None
@@ -52,6 +57,10 @@ class Knowledge:
         if ef.exists():
             with np.load(ef) as z:
                 self.emb = {k: z[k].astype(np.float32) for k in z.files}
+        ef2 = self.dir / "embeddings2.npz"
+        if ef2.exists():
+            with np.load(ef2) as z:
+                self.emb2 = {k: z[k].astype(np.float32) for k in z.files if k in self.emb}
         self.meta = {k: v for k, v in self.meta.items() if k in self.emb}
 
     def _save(self) -> None:
@@ -61,11 +70,18 @@ class Knowledge:
         tmp = self.dir / "embeddings.tmp.npz"
         np.savez_compressed(tmp, **{k: v.astype(np.float16) for k, v in self.emb.items()})
         os.replace(tmp, self.dir / "embeddings.npz")
+        tmp = self.dir / "embeddings2.tmp.npz"
+        np.savez_compressed(tmp, **{k: v.astype(np.float16) for k, v in self.emb2.items()})
+        os.replace(tmp, self.dir / "embeddings2.npz")
+        self._changed()
+
+    def _changed(self) -> None:
         self._matrix = None
+        self._clf_ready = False
 
     # --- aprender ----------------------------------------------------------------
     def learn(self, emb: np.ndarray, review: dict, fields: dict, author: str,
-              filename: str, save: bool = True) -> str:
+              filename: str, save: bool = True, emb2: np.ndarray | None = None) -> str:
         """Guarda (ou atualiza) o exemplo de um som confirmado."""
         eid = example_id(emb)
         with self.lock:
@@ -86,7 +102,9 @@ class Knowledge:
                 "app": __version__,
             }
             self.emb[eid] = np.asarray(emb, np.float32)
-            self._matrix = None
+            if emb2 is not None:
+                self.emb2[eid] = np.asarray(emb2, np.float32)
+            self._changed()
             if save:
                 self._schedule_save()
         return eid
@@ -132,6 +150,26 @@ class Knowledge:
                     break
             return out
 
+    def classifier(self) -> classifier.Model | None:
+        """Classificador treinado com todos os exemplos (refeito quando estes mudam)."""
+        with self.lock:
+            if not self._clf_ready:
+                self._clf = None
+                ids = [i for i in self.emb if self.meta.get(i, {}).get("catid")]
+                if len(ids) >= classifier.MIN_EXAMPLES:
+                    from .ucs import load_ucs
+                    index = {c.catid: n for n, c in enumerate(load_ucs())}
+                    ids = [i for i in ids if self.meta[i]["catid"] in index]
+                    use2 = classifier.TRAIN.get("use_helper", False) and all(i in self.emb2 for i in ids)
+                    if ids:
+                        X1 = np.stack([self.emb[i] for i in ids])
+                        X2 = np.stack([self.emb2[i] for i in ids]) if use2 else None
+                        y = np.array([index[self.meta[i]["catid"]] for i in ids])
+                        params = dict(classifier.TRAIN, use_helper=use2)
+                        self._clf = classifier.train(X1, X2, y, **params)
+                self._clf_ready = True
+            return self._clf
+
     # --- partilhar ---------------------------------------------------------------
     def export_bytes(self, author: str) -> bytes:
         with self.lock:
@@ -150,6 +188,14 @@ class Knowledge:
                 npy = io.BytesIO()
                 np.save(npy, mat)
                 z.writestr("embeddings.npy", npy.getvalue())
+                # segundo modelo (v0.7+): linhas a zero onde não existe; versões antigas ignoram
+                mat2 = np.zeros_like(mat)
+                for n, i in enumerate(ids):
+                    if i in self.emb2:
+                        mat2[n] = self.emb2[i]
+                npy = io.BytesIO()
+                np.save(npy, mat2)
+                z.writestr("embeddings2.npy", npy.getvalue())
             return buf.getvalue()
 
     def import_bytes(self, data: bytes) -> dict:
@@ -160,6 +206,8 @@ class Knowledge:
                     raise ValueError
                 items = json.loads(z.read("exemplos.json"))
                 mat = np.load(io.BytesIO(z.read("embeddings.npy"))).astype(np.float32)
+                mat2 = (np.load(io.BytesIO(z.read("embeddings2.npy"))).astype(np.float32)
+                        if "embeddings2.npy" in z.namelist() else None)
         except Exception:
             raise ValueError("Este ficheiro não é um ficheiro de conhecimento do SFX Tagger (.sfxk)")
         if len(items) != len(mat) or (len(mat) and mat.shape[1] != 512):
@@ -167,7 +215,7 @@ class Knowledge:
         new = updated = same = 0
         authors = Counter()
         with self.lock:
-            for item, vec in zip(items, mat):
+            for n, (item, vec) in enumerate(zip(items, mat)):
                 eid = item.pop("id", None) or example_id(vec)
                 vec = vec / (np.linalg.norm(vec) + 1e-9)
                 item["origin"] = "importado"
@@ -184,6 +232,9 @@ class Knowledge:
                     item["origin"] = "local"
                 self.meta[eid] = item
                 self.emb[eid] = vec.astype(np.float32)
+                if mat2 is not None and len(mat2) == len(mat) and np.abs(mat2[n]).sum() > 0:
+                    v2 = mat2[n]
+                    self.emb2[eid] = (v2 / (np.linalg.norm(v2) + 1e-9)).astype(np.float32)
             self._save()
         return {"new": new, "updated": updated, "same": same,
                 "from": manifest.get("exported_by", ""), "authors": dict(authors)}
@@ -194,6 +245,7 @@ class Knowledge:
             for i in ids:
                 self.meta.pop(i, None)
                 self.emb.pop(i, None)
+                self.emb2.pop(i, None)
             self._save()
             return len(ids)
 

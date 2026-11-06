@@ -101,7 +101,12 @@
   </div>
   <ul>
     <li><b>O que ensina mais:</b> confirmar sons em que a IA <i>errou</i> (corrigindo-os) e ter pelo menos
-      5 sons de cada tipo de som.</li>
+      5 sons de cada tipo de som. Por isso o modo treino mostra primeiro os sons em que a IA tem
+      <b>dúvidas</b> (ordem "Duvidosos primeiro").</li>
+    <li><b>Classificador treinado:</b> a partir de 3 sons confirmados, a app treina sozinha (em menos de um
+      segundo) um classificador com todos os exemplos. Com vários exemplos por tipo de som aprende o vosso
+      estilo de gravação melhor do que procurar só o som mais parecido. Só intervém em sons parecidos com
+      tipos já confirmados; os outros ficam com a opinião da IA de base.</li>
     <li><b>O ficheiro .sfxk é pequeno</b> (cerca de 2 KB por som) e não tem áudio: só as "impressões digitais"
       dos sons e as categorias.</li>
     <li><b>Podes exportar sempre que quiseres.</b> Importar o mesmo ficheiro duas vezes não duplica nada.</li>
@@ -121,13 +126,25 @@
     <li><b>Nome do ficheiro e da pasta:</b> <code>porta_madeira_ranger.wav</code> ajuda muito; <code>ZOOM0001.wav</code> não diz nada.</li>
     <li><b>O que ouves?:</b> a tua descrição é usada como pista forte.</li>
     <li><b>Memória:</b> sons parecidos com outros já confirmados recebem a categoria desses, com mais peso quanto mais parecidos forem.</li>
+    <li><b>Séries:</b> takes com o mesmo nome (<code>Door Slam 01</code>, <code>Door Slam 02</code>…) ajudam-se uns
+      aos outros: cada take ouve também a opinião dos restantes, o que corrige um take isolado que fuja do grupo.</li>
   </ul>
+  <h3>Confiança</h3>
+  <p>Cada sugestão tem uma confiança: <b>alta</b> (verde), <b>média</b> (amarelo) ou <b>baixa</b> (vermelho),
+    calibrada para corresponder ao acerto real. Com "Duvidosos primeiro" revês primeiro os sons onde a IA
+    pode ter errado; os de confiança alta passam depressa.</p>
+  <h3>Gravações longas</h3>
+  <p>Em gravações com mais de 15 segundos (ambientes, vários takes), a IA ouve também cada parte em separado.
+    Em "Ao longo da gravação" vês o que ouviu em cada momento: clica numa parte para a ouvir, ou em "usar" para
+    escolher essa categoria. Se ouvir coisas diferentes, avisa que talvez valha a pena separar o ficheiro.</p>
   <h3>Análise técnica</h3>
   <p>Duração, taxa de amostragem, bits, canais, loudness (LUFS), pico, clipping, DC offset, e o tipo de som:
     one-shot, vários takes ou ambiente contínuo. Estes dados aparecem por cima da forma de onda.</p>
   <h3>Rascunhos</h3>
   <p>O FXName segue a convenção UCS (substantivo + especificação + ação, ex.: "Glass Break Shatter"). A Description
-    é um rascunho factual: o contexto (que porta, onde, como) é contigo, por escrito ou por voz.</p>
+    é um rascunho em inglês com o que a IA ouve com segurança: fonte, ação, material (ex.: "wooden"), como soa
+    ("heavy", "reverberant"), a estrutura (one-shot, takes, ambiente) e a cauda. Quando a IA tem dúvidas, fica
+    só pelo que se mede. O contexto (que porta, onde, como) é contigo, por escrito ou por voz.</p>
 
   <h2 id="ficheiros">5. O que é gravado nos ficheiros</h2>
   <table>
@@ -154,10 +171,15 @@
   <h2 id="precisao">7. Quão certa é a IA</h2>
   <p>Medido em 800 gravações reais etiquetadas (benchmark ESC-50 convertido para UCS), sem pistas no nome:</p>
   <ul>
-    <li>a 1.ª sugestão está certa <b>77%</b> das vezes; a certa está entre as 5 sugestões <b>91%</b> das vezes;</li>
-    <li>com sons confirmados na memória, sons parecidos chegam a <b>83%</b> com 1 exemplo por tipo de som e a
-      <b>91%</b> com 5 exemplos.</li>
+    <li>a 1.ª sugestão está certa <b>77%</b> das vezes; a certa está entre as 5 sugestões <b>92%</b> das vezes;</li>
+    <li>quando a confiança é <b>alta</b>, a IA acerta mais de <b>90%</b> das vezes; quando é <b>baixa</b>, cerca de
+      metade, e por isso vale a pena rever esses primeiro;</li>
+    <li>em séries de takes, cada take ouvir os restantes acrescenta 2 a 3 pontos;</li>
+    <li>com o classificador treinado, tipos de som já confirmados chegam a <b>89%</b> com 1 exemplo por tipo e a
+      <b>95%</b> com 5 exemplos, sem piorar os tipos de som que ninguém confirmou.</li>
   </ul>
+  <p>Estes números vêm de uma base de sons pública. O que conta são os vossos sons: quem coordena pode medir a
+    precisão real com os ficheiros <code>.sfxk</code> dos colegas (ferramenta <code>avaliar_curso.py</code>).</p>
   <p>Sons desenhados ou abstratos (UI, sci-fi, magia) são os mais difíceis, por isso revê-os com atenção.</p>
 
   <h2 id="privacidade">8. Privacidade</h2>
