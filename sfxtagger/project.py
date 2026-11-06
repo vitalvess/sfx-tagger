@@ -14,8 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, metadata, ucs
-from .ai import get_tagger, name_words
+from . import audio, classifier, metadata, ucs
+from .ai import GROUP_BETA, get_tagger, name_words
 from .knowledge import get_knowledge
 
 STATE_DIR = ".sfxtagger"
@@ -29,6 +29,8 @@ DEFAULT_KEYS = ["library", "designer", "microphone", "rec_medium", "location",
                 "creator_id", "source_id"]
 
 FXNAME_MAX = 30
+SEGMENT_MIN_DURATION = 15.0   # gravações mais longas são ouvidas também por partes
+SEGMENT_MAX = 24
 
 
 def _now() -> float:
@@ -267,6 +269,8 @@ class Project:
                 self.save()
                 last_save = _now()
         self._compute_groups()
+        self.job["phase"] = "a comparar takes da mesma série"
+        self._apply_group_consensus(tagger, todo)
         self.save()
         self.job.update(running=False, phase="concluído", current="")
 
@@ -282,10 +286,12 @@ class Project:
         windows = audio.best_windows(loaded.mono)
         emb = tagger.embed_audio(windows)
         emb2 = tagger.embed_audio_helper(windows)
-        sug = tagger.suggest(emb, words, folder, memory=get_knowledge().neighbours(emb),
-                             helper_emb=emb2)
+        kb = get_knowledge()
+        sug = tagger.suggest(emb, words, folder, memory=kb.neighbours(emb),
+                             helper_emb=emb2, clf=self._classifier())
         sug["name_words"] = words
         sug["folder_words"] = folder
+        segments = self._segments(loaded.mono, tech, tagger)
         with self.lock:
             self.embeddings[rec["id"]] = emb
             if emb2 is not None:
@@ -294,16 +300,121 @@ class Project:
             self._arrays_dirty = True
             rec["tech"] = tech
             rec["suggestion"] = sug
+            rec["segments"] = segments
+            rec["mixed"] = _is_mixed(segments)
             rec["error"] = None
-            # rascunhos só da IA (ninguém mexeu, nada vinha no ficheiro): refazem-se
-            if (rec["status"] in ("novo", "sugerido") and not rec.get("dirty")
-                    and not rec.get("had_metadata")):
-                for k in ("catid", "category", "subcategory", "category_full",
-                          "fxname", "description", "keywords"):
-                    rec["fields"][k] = ""
-            self._fill_draft(rec)
+            self._redraft(rec)
             if rec["status"] == "novo":
                 rec["status"] = "sugerido"
+
+    def _redraft(self, rec: dict) -> None:
+        """Rascunhos só da IA (ninguém mexeu, nada vinha no ficheiro) refazem-se."""
+        if (rec["status"] in ("novo", "sugerido") and not rec.get("dirty")
+                and not rec.get("had_metadata")):
+            for k in ("catid", "category", "subcategory", "category_full",
+                      "fxname", "description", "keywords"):
+                rec["fields"][k] = ""
+        self._fill_draft(rec)
+
+    def _segments(self, x: np.ndarray, tech: dict, tagger) -> list[dict]:
+        """O que a IA ouve em cada parte de uma gravação longa (ambientes, vários takes)."""
+        sr = audio.ANALYSIS_SR
+        dur = len(x) / sr
+        if dur < SEGMENT_MIN_DURATION:
+            return []
+        if tech.get("kind") == "takes" and tech.get("event_times"):
+            spans = [(s0, min(e0, s0 + 10.0)) for s0, e0 in tech["event_times"] if e0 - s0 >= 0.3]
+        else:
+            spans = [(t, min(t + 5.0, dur)) for t in np.arange(0, dur - 1.0, 5.0)]
+        if len(spans) > SEGMENT_MAX:   # gravação muito longa: partes espalhadas por todo o ficheiro
+            pick = np.linspace(0, len(spans) - 1, SEGMENT_MAX).round().astype(int)
+            spans = [spans[i] for i in pick]
+        if len(spans) < 2:
+            return []
+        _, probs = tagger.window_probs([x[int(a * sr):int(b * sr)] for a, b in spans])
+        out: list[dict] = []
+        for (a, b), pr in zip(spans, probs):
+            i = int(pr.argmax())
+            catid = tagger.categories[i].catid
+            if out and out[-1]["catid"] == catid and a - out[-1]["end"] < 1.0:
+                out[-1]["end"] = round(float(b), 2)
+                out[-1]["score"] = round(max(out[-1]["score"], float(pr[i])), 3)
+            else:
+                out.append({"start": round(float(a), 2), "end": round(float(b), 2),
+                            "catid": catid, "score": round(float(pr[i]), 3)})
+        return out
+
+    # --- classificador treinado, com a "porta" ajustada a esta biblioteca --------------
+    def _classifier(self, fresh: bool = False):
+        """O classificador da memória, com o limiar de cada categoria acima do que é típico
+        NESTA biblioteca (gravações da mesma sala/gravador parecem-se todas)."""
+        kb = get_knowledge()
+        base = kb.classifier()
+        if base is None:
+            return None
+        n = len(self.embeddings)
+        cached = getattr(self, "_clf_cache", None)
+        if (not fresh and cached and cached[0] is base
+                and n < max(cached[1] * 1.25, cached[1] + 25)):
+            return cached[2]
+        X1, X2 = [], []
+        for rid, e in self.embeddings.items():
+            e2 = self.embeddings2.get(rid)
+            if base.use_helper and e2 is None:
+                continue
+            X1.append(e)
+            X2.append(e2)
+        if len(X1) < 20:   # biblioteca pequena: junta os exemplos confirmados (mais prudente)
+            with kb.lock:
+                for i, e in kb.emb.items():
+                    e2 = kb.emb2.get(i)
+                    if base.use_helper and e2 is None:
+                        continue
+                    X1.append(e)
+                    X2.append(e2)
+        bg = (classifier.features(np.stack(X1), np.stack(X2) if base.use_helper else None)
+              if X1 else None)
+        clf = classifier.adapt(base, bg, gate_at=classifier.BLEND["gate_at"], **classifier.ADAPT)
+        self._clf_cache = (base, n, clf)
+        return clf
+
+    # --- séries: takes do mesmo som ajudam-se uns aos outros ------------------------
+    def _group_priors(self, tagger) -> dict[str, np.ndarray]:
+        groups: dict[str, list[str]] = {}
+        for rid, rec in self.records.items():
+            if rec.get("group") and rid in self.embeddings and not rec.get("missing"):
+                groups.setdefault(rec["group"], []).append(rid)
+        priors = {}
+        for ids in groups.values():
+            if len(ids) < 2:
+                continue
+            P = np.stack([tagger.audio_probs(self.embeddings[r], self.embeddings2.get(r)) for r in ids])
+            for n, r in enumerate(ids):
+                # a opinião dos OUTROS takes (sem contar o próprio duas vezes)
+                priors[r] = np.delete(P, n, axis=0).mean(0)
+        return priors
+
+    def _apply_group_consensus(self, tagger, ids: list[str]) -> None:
+        priors = self._group_priors(tagger)
+        if not priors:
+            return
+        kb = get_knowledge()
+        clf = self._classifier(fresh=True)
+        with self.lock:
+            for rid in ids:
+                rec = self.records.get(rid)
+                if rec is None or rid not in priors or rec.get("suggestion") is None:
+                    continue
+                old = rec["suggestion"]
+                emb = self.embeddings[rid]
+                sug = tagger.suggest(emb, old.get("name_words") or [], old.get("folder_words") or [],
+                                     memory=kb.neighbours(emb), helper_emb=self.embeddings2.get(rid),
+                                     clf=clf, prior=priors[rid], prior_weight=GROUP_BETA)
+                for k in ("name_words", "folder_words", "from_heard"):
+                    if k in old:
+                        sug[k] = old[k]
+                rec["suggestion"] = sug
+                self._redraft(rec)
 
     def _fill_draft(self, rec: dict) -> None:
         """Preenche só os campos vazios — nunca apaga o trabalho de uma pessoa."""
@@ -330,7 +441,12 @@ class Project:
         if not f.get("description"):
             # sem nome útil, a descrição parte do FXName (coerente com a categoria escolhida)
             subject = words or (f.get("fxname") or "").lower().split()
-            f["description"] = _draft_description(subject, ai_kw, tech)
+            attrs = dict(sug.get("attributes") or {})
+            if (sug.get("confidence") or {}).get("level") == "baixa":
+                # a IA não sabe bem o que é: não inventa fonte nem ação, fica no que se ouve
+                attrs.pop("source", None)
+                attrs.pop("action", None)
+            f["description"] = _draft_description(subject, attrs, tech, rec.get("segments") or [])
         for k in DEFAULT_KEYS:
             if not f.get(k) and self.defaults.get(k):
                 f[k] = self.defaults[k]
@@ -403,7 +519,8 @@ class Project:
         if emb is None or not review.get("verdict") or not rec["fields"].get("catid"):
             return
         get_knowledge().learn(emb, review, rec["fields"], self.author,
-                              Path(rec["path"]).name, save=save)
+                              Path(rec["path"]).name, save=save,
+                              emb2=self.embeddings2.get(rec["id"]))
 
     def learn_existing(self) -> int:
         """Ensina à memória os sons desta biblioteca que já tinham sido confirmados."""
@@ -423,6 +540,8 @@ class Project:
         tagger = get_tagger()
         tagger.ensure_loaded()
         kb = get_knowledge()
+        clf = self._classifier(fresh=True)
+        priors = self._group_priors(tagger)
         changed = 0
         with self.lock:
             for rec in self.records.values():
@@ -438,7 +557,8 @@ class Project:
                     words = name_words((rec.get("review") or {}).get("heard", ""))
                 sug = tagger.suggest(emb, words, old.get("folder_words") or [],
                                      memory=kb.neighbours(emb),
-                                     helper_emb=self.embeddings2.get(rec["id"]))
+                                     helper_emb=self.embeddings2.get(rec["id"]), clf=clf,
+                                     prior=priors.get(rec["id"]), prior_weight=GROUP_BETA)
                 sug["name_words"] = words
                 sug["folder_words"] = old.get("folder_words") or []
                 sug["from_heard"] = old.get("from_heard", False)
@@ -449,7 +569,10 @@ class Project:
                 if ai_chosen and not rec.get("dirty") and sug["categories"]:
                     new_cat = sug["categories"][0]["catid"]
                     if new_cat != rec["fields"].get("catid"):
-                        self.apply_catid(rec, new_cat)
+                        if rec.get("had_metadata"):
+                            self.apply_catid(rec, new_cat)
+                        else:   # rascunho só da IA: FXName e Description seguem a nova categoria
+                            self._redraft(rec)
                         changed += 1
             self.save()
         return changed
@@ -464,8 +587,9 @@ class Project:
         if emb is not None and text.strip():
             tagger = get_tagger()
             tagger.ensure_loaded()
-            sug = tagger.suggest(emb, name_words(text), memory=get_knowledge().neighbours(emb),
-                                 helper_emb=self.embeddings2.get(rid))
+            kb = get_knowledge()
+            sug = tagger.suggest(emb, name_words(text), memory=kb.neighbours(emb),
+                                 helper_emb=self.embeddings2.get(rid), clf=self._classifier())
             with self.lock:
                 old = rec.get("suggestion") or {}
                 sug["name_words"] = name_words(text)
@@ -698,21 +822,68 @@ def _fxname_from_category(cat, ai_kw: list[str]) -> str:
     return _title(parts, FXNAME_MAX)
 
 
-def _draft_description(words: list[str], ai_kw: list[str], tech: dict) -> str:
-    """Rascunho curto e factual — o designer completa o contexto (o quê, onde, como)."""
-    if words:
-        subject = " ".join(words[:6])
-    elif ai_kw:
-        subject = ", ".join(ai_kw[:3]) + " sound"
-    else:
-        subject = ""
+_MATERIAL_ADJ = {"wood": "wooden", "metal": "metallic", "stone": "stone", "glass": "glass",
+                 "plastic": "plastic", "paper": "paper", "cardboard": "cardboard", "cloth": "cloth",
+                 "fabric": "fabric", "leather": "leather", "rubber": "rubber", "concrete": "concrete",
+                 "gravel": "gravel", "sand": "sand", "dirt": "dirt", "mud": "muddy", "snow": "snow",
+                 "ice": "ice", "water": "water", "liquid": "liquid", "ceramic": "ceramic",
+                 "porcelain": "porcelain", "electric": "electric", "electronic": "electronic",
+                 "mechanical": "mechanical", "hydraulic": "hydraulic", "pneumatic": "pneumatic"}
+
+
+_OPPOSITES = {frozenset(p) for p in (("wet", "dry"), ("loud", "soft"), ("loud", "quiet"), ("heavy", "light"),
+                                      ("small", "large"), ("small", "big"), ("tiny", "big"), ("tiny", "large"),
+                                      ("bright", "dark"), ("deep", "high pitched"), ("low", "high pitched"),
+                                      ("sharp", "dull"), ("harsh", "smooth"), ("distant", "close"),
+                                      ("noisy", "clean"), ("aggressive", "gentle"), ("muffled", "bright"))}
+
+
+def _is_mixed(segments: list[dict]) -> bool:
+    """A gravação tem sons de tipos claramente diferentes? (categorias principais UCS distintas,
+    cada uma ouvida com alguma segurança em pelo menos 25% do tempo analisado)."""
+    total = sum(sg["end"] - sg["start"] for sg in segments) or 1.0
+    by_family: dict[str, float] = {}
+    for sg in segments:
+        cat = ucs.lookup(sg["catid"])
+        if cat and sg.get("score", 0) >= 0.4:
+            by_family[cat.category] = by_family.get(cat.category, 0.0) + sg["end"] - sg["start"]
+    return sum(1 for d in by_family.values() if d / total >= 0.25) >= 2
+
+
+def _draft_description(words: list[str], attrs: dict, tech: dict, segments: list[dict] = ()) -> str:
+    """Rascunho curto em inglês: o quê (fonte, ação, material), como soa e a estrutura.
+    O designer completa o contexto (onde, como foi gravado)."""
+    subject = " ".join(words[:6])
+    used = set(subject.split())
+    first = [subject] if subject else []
+    for group in ("source", "action"):
+        for w in attrs.get(group, []):
+            if not set(w.split()) & used:
+                first.append(w)
+                used |= set(w.split())
+    for w in attrs.get("material", []):
+        adj = _MATERIAL_ADJ.get(w, w)
+        if w not in used and adj not in used:
+            first.append(adj)
+            used |= {w, adj}
+    qualities = []
+    for q in attrs.get("quality", []):
+        if q not in used and not any(frozenset((q, o)) in _OPPOSITES for o in qualities):
+            qualities.append(q)
     kind = tech.get("kind")
     n = tech.get("events") or 0
     dur = tech.get("duration") or 0
+    tail = tech.get("tail_s")
     structure = {
         "takes": f"{n} takes" if n > 1 else "",
         "one-shot": "single one-shot",
         "ambiente": f"continuous ambience, {dur:.0f} s",
     }.get(kind, "")
-    text = ", ".join(x for x in (subject, structure) if x)
-    return (text[:1].upper() + text[1:] + ".") if text else ""
+    if kind in ("one-shot", "evento") and tail:
+        structure = ", ".join(x for x in (structure, "long tail" if tail >= 1.5 else
+                                          "short tail" if tail < 0.4 else "") if x)
+    if _is_mixed(segments):
+        structure = ", ".join(x for x in (structure, "several different events") if x)
+    parts = [", ".join(first), " and ".join(qualities), structure]
+    sentences = [x[:1].upper() + x[1:] for x in parts if x]
+    return ". ".join(sentences) + "." if sentences else ""

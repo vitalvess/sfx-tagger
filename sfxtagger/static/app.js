@@ -9,6 +9,7 @@ const S = {
   activeFull: null,     // registo completo (com forma de onda)
   selected: new Set(),
   filter: "all",
+  sort: storeGet("sfxtagger.sort") === "duvida" ? "duvida" : "nome",  // ou menor confiança primeiro
   search: "",
   ucs: [],
   ucsById: new Map(),
@@ -22,6 +23,11 @@ const FIELD_LABELS = {
   catid: "CatID", fxname: "FXName", description: "Description", keywords: "Keywords",
   notes: "Notes", library: "Library", designer: "Designer", microphone: "Microphone",
   rec_medium: "RecMedium", location: "Location", creator_id: "CreatorID", source_id: "SourceID",
+};
+const CONF_TEXT = {
+  alta: "Confiança alta: a IA costuma acertar nestes casos",
+  media: "Confiança média: confirma se a categoria está certa",
+  baixa: "Confiança baixa: a IA tem dúvidas, vê as outras sugestões",
 };
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Cmd" : "Ctrl";
 const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
@@ -196,12 +202,18 @@ function renderList() {
     $("span", b).textContent = counts[b.dataset.f] || 0;
   });
 
-  const rows = S.records.filter(matches).sort((a, b) => a.path.localeCompare(b.path));
+  const byName = (a, b) => a.path.localeCompare(b.path);
+  const doubt = (r) => r.suggestion?.confidence?.value ?? (r.suggestion ? r.suggestion.categories[0]?.score ?? 1 : 2);
+  const rows = S.records.filter(matches).sort(S.sort === "duvida"
+    ? (a, b) => doubt(a) - doubt(b) || byName(a, b) : byName);
   S.view = rows.map((r) => r.id);
+  $("#sortSel").value = S.sort;
   $("#rows").innerHTML = rows.map((r) => {
     const f = r.fields;
     const conf = r.suggestion?.categories?.[0];
-    const confTxt = conf && conf.catid === f.catid ? Math.round(conf.score * 100) + "%" : "";
+    const level = r.suggestion?.confidence?.level || "";
+    const confTxt = conf && conf.catid === f.catid
+      ? `<span class="conf ${level}" title="${esc(CONF_TEXT[level] || "")}">${Math.round(conf.score * 100)}%</span>` : "";
     const st = statusOf(r);
     return `<tr data-id="${r.id}" class="${r.id === S.active ? "active" : ""}">
       <td class="c-chk"><input type="checkbox" ${S.selected.has(r.id) ? "checked" : ""}></td>
@@ -266,6 +278,7 @@ $("#selAll").onchange = (e) => {
 };
 $("#search").oninput = (e) => { S.search = e.target.value.trim(); renderList(); };
 $$("#filters button").forEach((b) => b.onclick = () => { S.filter = b.dataset.f; renderList(); });
+$("#sortSel").onchange = (e) => { S.sort = e.target.value; storeSet("sfxtagger.sort", S.sort); renderList(); };
 
 // ---------------------------------------------------------------- painel de detalhe
 async function select(id, { scroll = true } = {}) {
@@ -333,11 +346,13 @@ function renderDetail() {
       </div>
     </div>
 
-    ${sug ? `<div class="section"><h3>Sugestões da IA</h3><div class="sugs">${sugHtml}</div>
+    ${sug ? `<div class="section"><h3>Sugestões da IA ${sug.confidence ? `<span class="conf-badge ${sug.confidence.level}" title="${esc(CONF_TEXT[sug.confidence.level])}">confiança ${{ alta: "alta", media: "média", baixa: "baixa" }[sug.confidence.level]}</span>` : ""}</h3><div class="sugs">${sugHtml}</div>
+      ${sug.trained ? '<div class="note">Ajustado pelo classificador treinado com os sons já confirmados.</div>' : ""}
       ${sug.memory?.length ? `<div class="note">Aprendido com sons já confirmados: ${sug.memory.slice(0, 3).map((m) =>
         `${m.n} som${m.n > 1 ? "s" : ""} parecido${m.n > 1 ? "s" : ""} confirmado${m.n > 1 ? "s" : ""} como <b>${esc(m.catid)}</b> (${Math.round(m.best * 100)}% semelhante)`).join("; ")}</div>` : ""}
       ${sug.used_name ? `<div class="note">Combinado com pistas do nome: <i>${esc([...(sug.name_words || []), ...(sug.folder_words || []).map((w) => w + " (pasta)")].join(", "))}</i></div>` : ""}
     </div>` : ""}
+    ${segmentsHtml(r)}
 
     <div class="section">
       <h3>Metadados ${verdictBadge(r)}</h3>
@@ -423,6 +438,12 @@ function renderDetail() {
   $("#btnGroup") && ($("#btnGroup").onclick = () => selectGroup(r));
   $("#btnSimilar") && ($("#btnSimilar").onclick = () => selectSimilar(r));
   $("#btnReanalyze").onclick = () => runAnalysis([r.id], true);
+  $$(".seg", el).forEach((b) => b.onclick = (e) => {
+    if (e.target.closest(".seg-use")) { setCatid(b.dataset.catid); return; }
+    const p = $("#player");
+    p.currentTime = +b.dataset.t;
+    p.play().catch(() => {});
+  });
   $("#waveWrap").onclick = (e) => {
     const p = $("#player");
     if (!p.duration) return;
@@ -432,6 +453,24 @@ function renderDetail() {
   };
   updateDerived();
   drawWave();
+}
+
+function segmentsHtml(r) {
+  const segs = r.segments || [];
+  if (segs.length < 2) return "";
+  const items = segs.map((s) => {
+    const c = S.ucsById.get(s.catid);
+    return `<div class="seg" data-t="${s.start}" data-catid="${esc(s.catid)}" role="button" tabindex="0" title="Ouvir a partir daqui">
+      <span class="seg-t">${fmtDur(s.start)}–${fmtDur(s.end)}</span>
+      <span class="id">${esc(s.catid)}</span>
+      <span class="nm">${c ? esc(c.category + " · " + c.subcategory) : ""}</span>
+      <span class="pc">${Math.round(s.score * 100)}%</span>
+      ${s.catid !== r.fields.catid ? '<button class="small seg-use" title="Usar esta categoria">usar</button>' : ""}
+    </div>`;
+  }).join("");
+  return `<div class="section"><h3>Ao longo da gravação</h3>
+    ${r.mixed ? '<div class="note">A IA ouviu sons diferentes em partes diferentes. Se forem coisas distintas, considera separá-las em ficheiros.</div>' : ""}
+    <div class="segs">${items}</div></div>`;
 }
 
 function verdictBadge(r) {
@@ -966,6 +1005,7 @@ $("#kbStart").onclick = () => {
     return;
   }
   S.filter = "sugerido";
+  S.sort = "duvida";      // os sons em que a IA tem dúvidas são os que mais a ensinam
   S.autoplay = true;
   renderList();
   select(S.view[0]);

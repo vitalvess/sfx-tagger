@@ -298,3 +298,20 @@ button.mic .spinner { width: 14px; height: 14px; display: block; }
   .list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
   .files .c-conf, .files th:nth-child(7), .files td:nth-child(7) { display: none; }
 }
+
+/* confiança da IA e partes de gravações longas (v0.7) */
+#sortSel { width: auto; align-self: flex-start; padding: 3px 8px; font-size: 12px; }
+.conf.alta { color: var(--ok); } .conf.media { color: var(--warn); } .conf.baixa { color: var(--err); }
+.conf-badge { font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 10px; border: 1px solid;
+              margin-left: 6px; text-transform: none; letter-spacing: 0; }
+.conf-badge.alta { color: var(--ok); } .conf-badge.media { color: var(--warn); } .conf-badge.baixa { color: var(--err); }
+.segs { display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow-y: auto; }
+.seg { display: grid; grid-template-columns: 82px 80px 1fr 40px auto; gap: 8px; align-items: center;
+       padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 12px; }
+.seg:hover { border-color: var(--muted); }
+.seg .seg-t { color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg .id { font-family: ui-monospace, Consolas, monospace; }
+.seg .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg .pc { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg-use { padding: 1px 8px; font-size: 11px; }
+@media (max-width: 700px) { .seg { grid-template-columns: 70px 1fr 36px auto; } .seg .nm { display: none; } }

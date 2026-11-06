@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import paths, ucs, vocab
+from . import classifier, paths, ucs, vocab
 from .audio import ANALYSIS_SR
 
 MODEL_NAME = "laion/larger_clap_general"      # modelo principal (keywords, memória)
@@ -53,6 +53,11 @@ NAME_STOPWORDS = {
 
 NON_SOUND_CATEGORIES = {"ARCHIVED"}
 
+# Qualidades que a IA não consegue ouvir com fiabilidade (estilo, época) ou que a análise
+# técnica mede melhor (duração, cauda): não entram nas descrições
+_UNRELIABLE_QUALITIES = {"long", "short", "fast", "slow", "modern", "retro", "vintage",
+                         "futuristic", "cinematic", "eerie", "tense", "calm", "busy"}
+
 
 def name_words(*texts: str) -> list[str]:
     """Palavras úteis de nomes de ficheiro/pastas ('DoorWood_creak-03' -> door, wood, creak)."""
@@ -81,6 +86,67 @@ def category_texts(c: ucs.UCSCategory) -> dict[str, list[str]]:
     }
 
 
+# Hierarquia UCS: reforça as subcategorias da categoria principal mais provável
+# (expoente afinado no ESC-50; 0 = desligado)
+FAMILY_GAMMA = 0.5
+# Séries de takes do mesmo som: peso da opinião do grupo em cada take
+GROUP_BETA = 0.6
+# Confiança (probabilidade da 1.ª sugestão) a partir da qual a IA costuma acertar:
+# calibrado no ESC-50 (exp_otimizacao.py conf)
+CONFIDENCE_LEVELS = (("alta", 0.6), ("media", 0.4))
+
+
+def family_rescore(P: np.ndarray, family: np.ndarray, gamma: float) -> np.ndarray:
+    """P (sons x categorias) * prob. da categoria principal ^ gamma, renormalizado."""
+    if gamma <= 0:
+        return P
+    P = np.atleast_2d(P)
+    n_fam = int(family.max()) + 1
+    fam_p = np.zeros((len(P), n_fam))
+    np.add.at(fam_p.T, family, P.T)
+    Q = P * fam_p[:, family] ** gamma
+    return Q / Q.sum(1, keepdims=True)
+
+
+def group_consensus(P: np.ndarray, beta: float) -> np.ndarray:
+    """Takes da mesma série (P: takes x categorias): cada take ouve também o grupo."""
+    P = np.atleast_2d(P)
+    if len(P) < 2 or beta <= 0:
+        return P
+    mean = P.mean(0, keepdims=True)
+    Q = np.exp((1 - beta) * np.log(P + 1e-12) + beta * np.log(mean + 1e-12))
+    return Q / Q.sum(1, keepdims=True)
+
+
+def confidence_value(P: np.ndarray) -> np.ndarray | float:
+    """Probabilidade da 1.ª sugestão (P: categorias, ou sons x categorias)."""
+    return np.asarray(P).max(-1)
+
+
+def confidence_level(value: float) -> str:
+    for name, threshold in CONFIDENCE_LEVELS:
+        if value >= threshold:
+            return name
+    return "baixa"
+
+
+def _pick_device(torch) -> str:
+    """Aceleração quando existe: placa gráfica NVIDIA (cuda) ou chip M dos Mac (mps).
+    SFXTAGGER_DEVICE=cpu força o processador (para comparar ou se algo correr mal)."""
+    forced = os.environ.get("SFXTAGGER_DEVICE")
+    if forced:
+        return forced
+    try:
+        if torch.cuda.is_available():
+            return "cuda"
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+            return "mps"
+    except Exception:  # noqa: BLE001
+        pass
+    return "cpu"
+
+
 def _softmax(x: np.ndarray) -> np.ndarray:
     x = x - x.max()
     e = np.exp(x)
@@ -99,12 +165,15 @@ class Tagger:
         self._model = None
         self._proc = None
         self._torch = None
+        self.device = "cpu"
         self.cat_matrix: np.ndarray | None = None
         self.kw_matrix: np.ndarray | None = None
         self.categories = ucs.load_ucs()
         # categorias organizacionais (ADR, mixes, gravações brutas…) não descrevem o som
         self.suggestable = np.array([c.category not in NON_SOUND_CATEGORIES
                                      for c in self.categories])
+        fams = sorted({c.category for c in self.categories})
+        self.family_index = np.array([fams.index(c.category) for c in self.categories])
         self.keywords = vocab.all_keywords()
         self.logit_scale = 33.0
         self.helper = Tagger(helper, helper=None) if helper else None
@@ -141,10 +210,31 @@ class Tagger:
             self._proc = ClapProcessor.from_pretrained(self.model_name)
             self._model = ClapModel.from_pretrained(self.model_name)
         self._model.eval()
+        device = _pick_device(torch)
+        if device != "cpu":
+            self._try_device(device)
+        print(f"  modelo {self.model_name} em {self.device}", flush=True)
         try:
             self.logit_scale = float(self._model.logit_scale_a.exp().item())
         except Exception:
             pass
+
+    def _try_device(self, device: str) -> None:
+        """Usa a aceleração só se der o mesmo resultado que o processador (num som de teste).
+        Algumas operações do modelo podem não existir ou diferir na placa gráfica."""
+        rng = np.random.default_rng(0)
+        probe = [(rng.standard_normal(ANALYSIS_SR * 2) * 0.1).astype(np.float32)]
+        try:
+            ref = self.embed_windows(probe)
+            self._model.to(device)
+            self.device = device
+            got = self.embed_windows(probe)
+            if not np.isfinite(got).all() or float((ref * got).sum()) < 0.995:
+                raise ValueError(f"resultado diferente ({float((ref * got).sum()):.3f})")
+        except Exception as e:  # noqa: BLE001 — sem aceleração, funciona na mesma
+            print(f"  aceleração {device} desligada: {e}", flush=True)
+            self._model.to("cpu")
+            self.device = "cpu"
 
     def _category_matrix(self) -> np.ndarray:
         weights = CATEGORY_TEXT_WEIGHTS.get(self.model_name,
@@ -195,25 +285,34 @@ class Tagger:
     def embed_text(self, texts: list[str], batch: int = 64) -> np.ndarray:
         torch = self._torch
         res = []
-        with torch.no_grad():
+        with torch.inference_mode():
             for i in range(0, len(texts), batch):
                 tok = self._proc.tokenizer(texts[i:i + batch], padding=True, truncation=True,
                                            max_length=77, return_tensors="pt")
-                e = self._as_tensor(self._model.get_text_features(**tok)).cpu().numpy()
+                tok = {k: v.to(self.device) for k, v in tok.items()}
+                e = self._as_tensor(self._model.get_text_features(**tok)).float().cpu().numpy()
                 res.append(_norm(e))
         return np.concatenate(res).astype(np.float32)
 
-    def embed_audio(self, windows: list[np.ndarray]) -> np.ndarray:
-        """Embedding médio (normalizado) de várias janelas do mesmo som."""
+    def embed_windows(self, windows: list[np.ndarray], batch: int = 8) -> np.ndarray:
+        """Um embedding (normalizado) por janela de áudio."""
         torch = self._torch
         windows = [w if len(w) >= ANALYSIS_SR // 10 else np.pad(w, (0, ANALYSIS_SR // 10 - len(w)))
                    for w in windows]
-        with torch.no_grad():
-            feats = self._proc.feature_extractor(
-                [w.astype(np.float32) for w in windows], sampling_rate=ANALYSIS_SR,
-                return_tensors="pt")
-            e = self._as_tensor(self._model.get_audio_features(**feats)).cpu().numpy()
-        return _norm(_norm(e).mean(axis=0)).astype(np.float32)
+        out = []
+        with torch.inference_mode():
+            for i in range(0, len(windows), batch):
+                feats = self._proc.feature_extractor(
+                    [w.astype(np.float32) for w in windows[i:i + batch]],
+                    sampling_rate=ANALYSIS_SR, return_tensors="pt")
+                feats = {k: v.to(self.device) for k, v in feats.items()}
+                e = self._as_tensor(self._model.get_audio_features(**feats)).float().cpu().numpy()
+                out.append(_norm(e))
+        return np.concatenate(out).astype(np.float32)
+
+    def embed_audio(self, windows: list[np.ndarray]) -> np.ndarray:
+        """Embedding médio (normalizado) de várias janelas do mesmo som."""
+        return _norm(self.embed_windows(windows).mean(axis=0)).astype(np.float32)
 
     def embed_audio_helper(self, windows: list[np.ndarray]) -> np.ndarray | None:
         return self.helper.embed_audio(windows) if self.helper is not None else None
@@ -230,16 +329,20 @@ class Tagger:
             h = self.helper
             p2 = _softmax(np.where(self.suggestable, h.logit_scale * (h.cat_matrix @ helper_emb), -np.inf))
             p = (1 - HELPER_WEIGHT) * p + HELPER_WEIGHT * p2
-        return p
+        return family_rescore(p, self.family_index, FAMILY_GAMMA)[0] if FAMILY_GAMMA > 0 else p
 
     def suggest(self, audio_emb: np.ndarray, words: list[str], folder_words: list[str] = (),
                 top: int = 5, memory: list[tuple[str, float]] | None = None,
-                helper_emb: np.ndarray | None = None) -> dict:
+                helper_emb: np.ndarray | None = None, clf: classifier.Model | None = None,
+                prior: np.ndarray | None = None, prior_weight: float = 0.0) -> dict:
         """words: do nome do ficheiro (peso forte); folder_words: das pastas (peso fraco,
         porque muitas vezes são nomes de projeto, de gravador ou noutra língua);
         memory: exemplos confirmados parecidos com este som [(catid, semelhança)];
-        helper_emb: embedding do segundo modelo (se existir)."""
+        helper_emb: embedding do segundo modelo (se existir);
+        clf: classificador treinado com os sons confirmados (knowledge.classifier())."""
         logp = np.log(self.audio_probs(audio_emb, helper_emb) + 1e-12)
+        if prior is not None and prior_weight > 0:   # o que os outros takes da série ouvem
+            logp = (1 - prior_weight) * logp + prior_weight * np.log(prior + 1e-12)
         used_name = False
         if words:
             logp = 0.6 * logp + 0.4 * self._text_logp(words)
@@ -250,9 +353,17 @@ class Tagger:
             used_name = True
         logp = np.where(self.suggestable, logp, -np.inf)
         probs = _softmax(logp)
+        used_clf = False
+        if clf is not None and (helper_emb is not None or not clf.use_helper):
+            before = probs
+            probs = classifier.blend(probs, clf, audio_emb, helper_emb, **classifier.BLEND)[0]
+            used_clf = bool(np.abs(probs - before).max() > 0.02)
         used_memory = []
         if memory:
-            probs, used_memory = self._apply_memory(probs, memory)
+            # com classificador, a memória kNN só explica a sugestão: juntar os dois estragava
+            # mais os sons de tipos que ninguém confirmou (ESC-50, exp_otimizacao.py treino)
+            probs, used_memory = self._apply_memory(probs, memory, mix=clf is None)
+        conf = float(confidence_value(probs))
         order = np.argsort(probs)[::-1][:top]
         cats = [{"catid": self.categories[i].catid,
                  "category": self.categories[i].category,
@@ -268,9 +379,34 @@ class Tagger:
         kw_order = np.argsort(score)[::-1]
         kws = [self.keywords[i] for i in kw_order[:8] if score[i] > 1.5][:6]
         return {"categories": cats, "keywords": kws, "used_name": used_name,
-                "memory": used_memory}
+                "memory": used_memory, "trained": used_clf,
+                "confidence": {"value": round(conf, 3), "level": confidence_level(conf)},
+                "attributes": self._attributes(score)}
 
-    def _apply_memory(self, probs: np.ndarray, memory: list[tuple[str, float]]):
+    def _attributes(self, score: np.ndarray) -> dict[str, list[str]]:
+        """O que mais se destaca em cada grupo do vocabulário (para escrever a Description)."""
+        idx = {w: i for i, w in enumerate(self.keywords)}
+        out = {}
+        for group, words, n, thr in (("action", vocab.ACTIONS, 1, 1.6),
+                                     ("material", vocab.MATERIALS, 1, 1.8),
+                                     ("source", vocab.SOURCES, 1, 1.8),
+                                     ("quality", vocab.QUALITIES, 2, 1.6)):
+            cand = sorted(((score[idx[w]], w) for w in words
+                           if w in idx and w not in _UNRELIABLE_QUALITIES), reverse=True)
+            out[group] = [w for sc, w in cand[:n] if sc > thr]
+        return out
+
+    def window_probs(self, windows: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+        """Embeddings e probabilidades de cada janela em separado (só o modelo principal,
+        para ser rápido): usado para ver o que acontece ao longo de gravações longas."""
+        emb = self.embed_windows(windows)
+        logits = self.logit_scale * (emb @ self.cat_matrix.T)
+        logits[:, ~self.suggestable] = -np.inf
+        logits -= logits.max(1, keepdims=True)
+        p = np.exp(logits)
+        return emb, p / p.sum(1, keepdims=True)
+
+    def _apply_memory(self, probs: np.ndarray, memory: list[tuple[str, float]], mix: bool = True):
         """Mistura a opinião do modelo com a dos exemplos confirmados mais parecidos.
         Quanto mais parecido for o exemplo mais próximo, mais peso tem a memória."""
         index = {c.catid: i for i, c in enumerate(self.categories)}
@@ -287,6 +423,8 @@ class Tagger:
             s["best"] = max(s["best"], round(sim, 3))
         if votes.sum() <= 0:
             return probs, []
+        if not mix:
+            return probs, sorted(summary.values(), key=lambda s: (-s["n"], -s["best"]))
         best = max(sim for _, sim in memory)
         weight = float(np.clip((best - MEMORY["start"]) / (MEMORY["full"] - MEMORY["start"]),
                                0.0, MEMORY["max_weight"]))

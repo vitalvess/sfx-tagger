@@ -102,17 +102,31 @@ def main() -> None:
     pasta = Path(tempfile.mkdtemp(prefix="sfxtagger-teste-"))
     for tipo in ("tom", "impacto", "ruido"):
         som(pasta / f"teste_{tipo}.wav", tipo)
+    # uma série de takes (consenso entre takes) e uma gravação longa (análise por partes)
+    som(pasta / "Metal Hit 01.wav", "impacto")
+    som(pasta / "Metal Hit 02.wav", "impacto")
+    som(pasta / "longo.wav", "ruido", segundos=32)
+    t0 = time.time()
     api("POST", "/api/open", {"path": str(pasta)})
     api("POST", "/api/analyze", {})
     esperar("análise", 900, lambda: not api("GET", "/api/job")["job"]["running"])
+    print(f"    6 sons analisados em {time.time() - t0:.1f} s")
     recs = api("GET", "/api/project")["records"]
-    assert len(recs) == 3, f"esperava 3 sons, há {len(recs)}"
+    assert len(recs) == 6, f"esperava 6 sons, há {len(recs)}"
     for rec in recs:
-        cats = (rec.get("suggestion") or {}).get("categories") or []
+        sug = rec.get("suggestion") or {}
+        cats = sug.get("categories") or []
         assert rec.get("error") is None, f"{rec['path']}: {rec['error']}"
         assert cats and rec["fields"]["catid"], f"{rec['path']}: sem sugestões"
-        print(f"    {rec['path']}: {rec['fields']['catid']} ({rec['fields']['fxname']})")
-    print("OK  sugestões UCS")
+        assert sug.get("confidence", {}).get("level") in ("alta", "media", "baixa"), "sem confiança"
+        print(f"    {rec['path']}: {rec['fields']['catid']} ({rec['fields']['fxname']}), "
+              f"confiança {sug['confidence']['level']} · {rec['fields']['description']}")
+    longo = next(r for r in recs if r["path"] == "longo.wav")
+    assert len(longo.get("segments") or []) >= 1, "a gravação longa não foi analisada por partes"
+    serie = [r for r in recs if r["path"].startswith("Metal Hit")]
+    assert serie[0]["group"] and serie[0]["group"] == serie[1]["group"], "a série não foi agrupada"
+    print("OK  sugestões UCS, confiança, série e partes")
+    recs = [r for r in recs if r["path"].startswith("teste_")]
 
     res = api("POST", "/api/write", {"ids": [recs[0]["id"]], "rename": False, "backup": True})["result"]
     assert res["ok"] == 1 and not res["errors"], f"gravação: {res}"
