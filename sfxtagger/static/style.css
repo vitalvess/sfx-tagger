@@ -119,6 +119,9 @@ code { font-family: var(--mono); font-size: 12px; }
 .bar { height: 3px; background: var(--line); overflow: hidden; }
 .job .bar { flex: 0 0 120px; order: 1; }
 .bar div { height: 100%; width: 0; background: var(--text); transition: width .3s; }
+.statusbar button { height: 18px; padding: 0 7px; font: 400 11.5px var(--mono); border-color: var(--line-strong); }
+#btnStop { order: 3; flex: none; }
+#btnRestore { flex: none; color: var(--muted); }
 .status-keys kbd { font: inherit; color: var(--text); }
 .accuracy { color: var(--muted); }
 

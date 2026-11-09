@@ -523,6 +523,32 @@ def evaluation_csv():
                     headers=_attachment(f"teste_IA_{project().root.name}.csv"))
 
 
+@app.post("/api/analyze/stop")
+def analyze_stop():
+    return {"stopping": project().stop_job()}
+
+
+class RemoveReq(BaseModel):
+    ids: list[str]
+
+
+@app.post("/api/remove")
+def remove(req: RemoveReq):
+    p = project()
+    n = p.remove(req.ids, delete_files=_is_upload_batch(p))
+    if n is None:
+        raise HTTPException(409, "Espera que a análise termine ou carrega em Parar")
+    return {"removed": n, **_summary()}
+
+
+@app.post("/api/restore")
+def restore():
+    p = project()
+    if p.job["running"]:
+        raise HTTPException(409, "Espera que a análise termine ou carrega em Parar")
+    return {"restored": p.restore_ignored(), **_summary()}
+
+
 @app.get("/api/job")
 def job():
     p = project()

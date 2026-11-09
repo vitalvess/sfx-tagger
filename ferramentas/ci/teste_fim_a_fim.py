@@ -143,6 +143,18 @@ def main() -> None:
     assert ev and ev["n"] + ev["known"] >= 1 and ev["no_label"] <= 5, f"teste da IA: {ev}"
     print(f"OK  Testar a IA: {ev['n']} sons comparados")
 
+    api("POST", "/api/analyze", {"force": True})
+    api("POST", "/api/analyze/stop", {})
+    esperar("parar a análise", 120, lambda: not api("GET", "/api/job")["job"]["running"])
+    assert api("GET", "/api/job")["job"]["phase"] in ("parado", "concluído")
+    alvo = next(r for r in api("GET", "/api/project")["records"] if r["path"] == "longo.wav")
+    assert api("POST", "/api/remove", {"ids": [alvo["id"]]})["removed"] == 1
+    assert len(api("POST", "/api/rescan", {})["records"]) == 5, "o som removido voltou à lista"
+    assert (pasta / "longo.wav").exists(), "remover apagou um ficheiro da pessoa"
+    assert api("POST", "/api/restore", {})["restored"] == 1
+    assert len(api("GET", "/api/project")["records"]) == 6, "o som não voltou à lista"
+    print("OK  parar e remover")
+
     if a.precisao:
         api("POST", "/api/settings", {"max_precision": True})
 
