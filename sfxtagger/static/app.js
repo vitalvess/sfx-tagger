@@ -767,7 +767,7 @@ function startPolling() {
       ? (res.model !== "pronto" ? res.model : j.phase)
       : `${j.done}/${j.total} · ${basename(j.current || "")}`;
     // atualiza a lista à medida que avança, mas no máximo a cada 3 s (bibliotecas grandes)
-    if (j.running && j.done !== lastDone && Date.now() - lastRefresh > 3000) {
+    if (j.running && j.kind !== "teste" && j.done !== lastDone && Date.now() - lastRefresh > 3000) {
       lastDone = j.done;
       lastRefresh = Date.now();
       const p = await api("/api/project");
