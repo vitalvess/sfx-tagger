@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import classifier, paths, ucs, vocab
+from . import classifier, paths, precisao, ucs, vocab
 from .audio import ANALYSIS_SR
 
 MODEL_NAME = "laion/larger_clap_general"      # modelo principal (keywords, memória)
@@ -322,25 +322,32 @@ class Tagger:
         emb = self.embed_text(["the sound of " + " ".join(words[:8])])[0]
         return np.log(_softmax(self.logit_scale * (self.cat_matrix @ emb)) + 1e-12)
 
-    def audio_probs(self, audio_emb: np.ndarray, helper_emb: np.ndarray | None = None) -> np.ndarray:
-        """Probabilidade de cada categoria só pelo áudio (combinando os dois modelos)."""
+    def audio_probs(self, audio_emb: np.ndarray, helper_emb: np.ndarray | None = None,
+                    third_emb: np.ndarray | None = None) -> np.ndarray:
+        """Probabilidade de cada categoria só pelo áudio (combinando os modelos).
+        third_emb: terceiro modelo, no modo Precisão máxima (precisao.py)."""
         p = _softmax(np.where(self.suggestable, self.logit_scale * (self.cat_matrix @ audio_emb), -np.inf))
         if helper_emb is not None and self.helper is not None and self.helper.cat_matrix is not None:
             h = self.helper
             p2 = _softmax(np.where(self.suggestable, h.logit_scale * (h.cat_matrix @ helper_emb), -np.inf))
             p = (1 - HELPER_WEIGHT) * p + HELPER_WEIGHT * p2
-        return family_rescore(p, self.family_index, FAMILY_GAMMA)[0] if FAMILY_GAMMA > 0 else p
+        if FAMILY_GAMMA > 0:
+            p = family_rescore(p, self.family_index, FAMILY_GAMMA)[0]
+        if third_emb is not None and precisao.active():
+            p = (1 - precisao.WEIGHT) * p + precisao.WEIGHT * precisao.probs(third_emb, self.suggestable)
+        return p
 
     def suggest(self, audio_emb: np.ndarray, words: list[str], folder_words: list[str] = (),
                 top: int = 5, memory: list[tuple[str, float]] | None = None,
                 helper_emb: np.ndarray | None = None, clf: classifier.Model | None = None,
-                prior: np.ndarray | None = None, prior_weight: float = 0.0) -> dict:
+                prior: np.ndarray | None = None, prior_weight: float = 0.0,
+                third_emb: np.ndarray | None = None) -> dict:
         """words: do nome do ficheiro (peso forte); folder_words: das pastas (peso fraco,
         porque muitas vezes são nomes de projeto, de gravador ou noutra língua);
         memory: exemplos confirmados parecidos com este som [(catid, semelhança)];
         helper_emb: embedding do segundo modelo (se existir);
         clf: classificador treinado com os sons confirmados (knowledge.classifier())."""
-        logp = np.log(self.audio_probs(audio_emb, helper_emb) + 1e-12)
+        logp = np.log(self.audio_probs(audio_emb, helper_emb, third_emb) + 1e-12)
         if prior is not None and prior_weight > 0:   # o que os outros takes da série ouvem
             logp = (1 - prior_weight) * logp + prior_weight * np.log(prior + 1e-12)
         used_name = False
@@ -380,6 +387,7 @@ class Tagger:
         kws = [self.keywords[i] for i in kw_order[:8] if score[i] > 1.5][:6]
         return {"categories": cats, "keywords": kws, "used_name": used_name,
                 "memory": used_memory, "trained": used_clf,
+                "models": 3 if third_emb is not None and precisao.active() else 2,
                 "confidence": {"value": round(conf, 3), "level": confidence_level(conf)},
                 "attributes": self._attributes(score)}
 

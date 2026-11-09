@@ -1,11 +1,12 @@
 """Teste de ponta a ponta de uma app já lançada (Mac ou Windows), como um colega a usaria.
 
-    python ferramentas/ci/teste_fim_a_fim.py [--port 8765] [--sem-ia]
+    python ferramentas/ci/teste_fim_a_fim.py [--port 8765] [--sem-ia] [--precisao]
 
 1. espera que o servidor responda (o arranque instala o Python e as bibliotecas);
 2. espera que a instalação da IA termine (PyTorch + modelos);
 3. cria uma pasta com sons sintéticos, analisa-a e confirma que há sugestões UCS;
 4. grava os metadados num ficheiro e fecha a app.
+Com --precisao, antes de fechar liga o modo Precisão máxima e volta a analisar.
 
 Só usa a biblioteca padrão: corre com qualquer Python, fora do ambiente da app.
 """
@@ -80,6 +81,7 @@ def main() -> None:
     ap.add_argument("--arranque", type=float, default=600, help="segundos até o servidor responder")
     ap.add_argument("--ia", type=float, default=2400, help="segundos para instalar a IA")
     ap.add_argument("--sem-ia", action="store_true", help="só verifica o arranque")
+    ap.add_argument("--precisao", action="store_true", help="testa também o modo Precisão máxima")
     a = ap.parse_args()
     BASE = f"http://127.0.0.1:{a.port}"
 
@@ -134,6 +136,25 @@ def main() -> None:
     dados = (pasta / recs[0]["path"]).read_bytes()
     assert b"iXML" in dados and b"bext" in dados, "metadados não ficaram no ficheiro"
     print("OK  metadados gravados no WAV")
+
+    if a.precisao:
+        api("POST", "/api/settings", {"max_precision": True})
+
+        def terceiro_pronto():
+            p = api("GET", "/api/status")["precision"]
+            if p["state"] == "erro":
+                raise SystemExit(f"FALHOU: Precisão máxima: {p['error']}")
+            return p["state"] == "ok"
+        esperar("terceiro modelo", 1800, terceiro_pronto)
+        t0 = time.time()
+        api("POST", "/api/analyze", {"force": True})
+        esperar("análise com três modelos", 900, lambda: not api("GET", "/api/job")["job"]["running"])
+        print(f"    6 sons analisados em {time.time() - t0:.1f} s")
+        for rec in api("GET", "/api/project")["records"]:
+            assert rec.get("error") is None, f"{rec['path']}: {rec['error']}"
+            assert rec["suggestion"].get("models") == 3, f"{rec['path']}: não usou os três modelos"
+        api("POST", "/api/settings", {"max_precision": False})
+        print("OK  Precisão máxima")
 
     api("POST", "/api/quit", {})
     print("OK  tudo a funcionar")
