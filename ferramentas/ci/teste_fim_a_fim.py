@@ -137,6 +137,12 @@ def main() -> None:
     assert b"iXML" in dados and b"bext" in dados, "metadados não ficaram no ficheiro"
     print("OK  metadados gravados no WAV")
 
+    api("POST", "/api/evaluate", {})
+    esperar("teste da IA", 300, lambda: not api("GET", "/api/job")["job"]["running"])
+    ev = api("GET", "/api/evaluation")["summary"]
+    assert ev and ev["n"] + ev["known"] >= 1 and ev["no_label"] <= 5, f"teste da IA: {ev}"
+    print(f"OK  Testar a IA: {ev['n']} sons comparados")
+
     if a.precisao:
         api("POST", "/api/settings", {"max_precision": True})
 

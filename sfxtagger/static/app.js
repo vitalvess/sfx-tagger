@@ -783,16 +783,55 @@ function startPolling() {
       const typing = document.activeElement?.matches("#detail input, #detail textarea");
       if (S.active && !typing) select(S.active, { scroll: false });
       if (j.phase === "erro") toast(j.message, true);
+      else if (j.kind === "teste") showEvaluation();
       else toast(`Análise concluída: ${j.done} sons` + (j.errors ? `, ${j.errors} com erro` : "") + ".");
     }
   }
+}
+
+// ---------------------------------------------------------------- testar a IA
+async function showEvaluation() {
+  const { summary: s, history } = await api("/api/evaluation");
+  if (!s) return;
+  const lvl = { alta: "Alta", media: "Média", baixa: "Baixa" };
+  const rows = (list, f) => list.map(f).join("");
+  const notes = [];
+  if (s.known) notes.push(`${s.known} sons ficaram de fora porque a IA já os aprendeu (não seria um teste justo).`);
+  if (s.no_label) notes.push(`${s.no_label} sons não tinham classificação e não contam.`);
+  if (s.errors) notes.push(`${s.errors} ficheiros deram erro.`);
+  $("#evalBody").innerHTML = `
+    <p class="muted">${s.n} sons de <code>${esc(s.folder)}</code>, comparados com a classificação certa. A IA só ouviu o áudio, sem ver o nome dos ficheiros.
+      ${s.models} modelos, ${s.examples} exemplos aprendidos.</p>
+    ${s.n ? `<div class="kb-cards">
+      <div class="kb-card"><b>${s.top1}%</b><span>acertou à 1.ª sugestão</span></div>
+      <div class="kb-card"><b>${s.top5}%</b><span>estava nas 5 sugestões</span></div>
+      <div class="kb-card"><b>${s.family}%</b><span>categoria principal certa</span></div>
+    </div>
+    <div class="kb-stats">
+      <h3>A confiança é de fiar?</h3>
+      <table class="kb-table"><tr><th>Quando a IA diz</th><th>Sons</th><th>Acerta</th></tr>
+        ${rows(s.levels.filter((l) => l.n), (l) => `<tr><td>${lvl[l.level]}</td><td>${l.n}</td><td>${l.right}%</td></tr>`)}</table>
+      ${s.families.length ? `<h3>Categorias principais, da pior para a melhor</h3>
+      <table class="kb-table"><tr><th>Categoria</th><th>Sons</th><th>Acerta</th></tr>
+        ${rows(s.families, (f) => `<tr><td>${esc(f.family)}</td><td>${f.n}</td><td>${f.right}%</td></tr>`)}</table>` : ""}
+      ${s.confusions.length ? `<h3>O que mais confunde</h3>
+      <table class="kb-table"><tr><th>A IA disse</th><th>Era afinal</th><th>Vezes</th></tr>
+        ${rows(s.confusions, (c) => `<tr><td><code>${esc(c.ai)}</code></td><td><code>${esc(c.real)}</code></td><td>${c.n}</td></tr>`)}</table>` : ""}
+    </div>` : ""}
+    ${notes.map((n) => `<p class="muted">${esc(n)}</p>`).join("")}
+    ${history.length > 1 ? `<div class="kb-stats"><h3>Testes anteriores: a IA está a melhorar?</h3>
+      <table class="kb-table"><tr><th>Data</th><th>Pasta</th><th>Sons</th><th>Exemplos</th><th>Modelos</th><th>1.ª</th><th>Nas 5</th></tr>
+        ${rows([...history].reverse().slice(0, 10), (h) => `<tr><td>${esc(h.at)}</td><td>${esc(h.folder)}</td><td>${h.n}</td><td>${h.examples}</td><td>${h.models}</td><td>${h.top1}%</td><td>${h.top5}%</td></tr>`)}</table></div>` : ""}`;
+  $("#evalModal").classList.remove("hidden");
 }
 
 $("#btnAnalyze").onclick = (e) => { e.stopPropagation(); $("#analyzeMenu").classList.toggle("hidden"); };
 $$("#analyzeMenu button").forEach((b) => b.onclick = () => {
   $("#analyzeMenu").classList.add("hidden");
   const mode = b.dataset.an;
-  if (mode === "sel") {
+  if (mode === "test") {
+    api("/api/evaluate", { method: "POST" }).then(startPolling).catch((e) => toast(e.message, true));
+  } else if (mode === "sel") {
     if (!S.selected.size) return toast("Não há sons selecionados.", true);
     runAnalysis([...S.selected], true);
   } else if (mode === "all") {
