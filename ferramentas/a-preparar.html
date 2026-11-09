@@ -5,22 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A preparar o SFX Tagger</title>
 <style>
-  :root { --bg: #f4f5f7; --panel: #fff; --text: #1d2127; --muted: #69717d; --line: #dfe2e7; --accent: #c97a0a; }
+  :root { --bg: #e9e5db; --panel: #f3f0e8; --text: #1b1916; --muted: #696357; --line: #a39c8c; --accent: #d23c14; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #121417; --panel: #1a1d22; --text: #e6e8eb; --muted: #8b939e; --line: #2e333a; --accent: #f0a63a; }
+    :root { --bg: #121110; --panel: #181715; --text: #e8e2d6; --muted: #8f897d; --line: #4a453e; --accent: #ff5a36; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
          background: var(--bg); color: var(--text); font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif; padding: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px 30px; max-width: 520px; width: 100%; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 22px 26px; max-width: 520px; width: 100%; }
   h1 { font-size: 21px; margin: 0 0 6px; }
   p { color: var(--muted); margin: 0 0 14px; }
   .row { display: flex; align-items: center; gap: 12px; font-weight: 600; margin: 18px 0 8px; }
-  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent);
-          animation: s .9s linear infinite; flex: none; }
-  @keyframes s { to { transform: rotate(360deg); } }
+  .spin { width: 9px; height: 9px; background: var(--accent); animation: s 1s steps(2, jump-none) infinite; flex: none; }
+  @keyframes s { to { opacity: .15; } }
   ol { color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
-  .slow { display: none; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: rgba(201,122,10,.12); font-size: 13.5px; }
+  .slow { display: none; margin-top: 16px; padding: 10px 12px; border-left: 2px solid var(--accent); font-size: 13.5px; }
   code { font-size: 12.5px; }
 </style>
 </head>

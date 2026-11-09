@@ -3,3 +3,4 @@
 *.npy binary
 *.npz binary
 *.png binary
+*.woff2 binary

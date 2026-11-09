@@ -4,19 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SFX Tagger</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23121110'/%3E%3Cpath fill='%23e8e2d6' d='M2 7h1v2H2zM4 5h1v6H4zM10 6h1v4h-1zM12 4h1v8h-1z'/%3E%3Cpath fill='%23ff5a36' d='M7 2h1v12H7z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">SFX Tagger</div>
+  <div class="brand">sfx<b>/</b>tagger</div>
   <button id="btnFolder" class="folder" title="Abrir pasta de sons">
     <span id="folderLabel">Abrir pasta…</span>
   </button>
   <div class="spacer"></div>
-  <div id="jobBox" class="job hidden">
-    <div class="job-text" id="jobText"></div>
-    <div class="bar"><div id="jobBar"></div></div>
-  </div>
   <div class="menu-wrap">
     <button id="btnAnalyze" class="primary" disabled>Analisar</button>
     <div class="menu hidden" id="analyzeMenu">
@@ -43,18 +40,21 @@
 <input type="file" id="fileInput" multiple accept=".wav,.wave,.bwf,.aif,.aiff,.flac,.ogg,.mp3,audio/*" hidden>
 
 <div id="empty" class="empty">
-  <h1>Metadados de SFX, sem o trabalho chato.</h1>
-  <p>A IA ouve cada som e sugere <b>CatID UCS</b>, <b>FXName</b>, <b>Description</b> e
-    <b>Keywords</b>. Tu ouves, confirmas ou corriges, e gravas tudo dentro dos ficheiros.</p>
   <div class="dropzone" id="dropzone">
-    <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14"/></svg>
-    <div class="dz-title">Arrasta os teus sons para aqui</div>
-    <div class="muted">WAV, AIFF, FLAC, OGG ou MP3 · ou</div>
-    <button class="primary big" id="btnUpload2">Escolher ficheiros</button>
+    <div class="dz-playhead"></div>
+    <div class="dz-body">
+      <div class="dz-title">Larga aqui os teus sons</div>
+      <div class="dz-formats">WAV AIFF FLAC OGG MP3</div>
+      <div class="dz-actions">
+        <button class="primary" id="btnUpload2">Escolher ficheiros</button>
+        <button id="btnFolder2">Abrir pasta</button>
+      </div>
+    </div>
   </div>
-  <p class="muted small-gap">Já tens uma biblioteca organizada em pastas?
-    <button id="btnFolder2">Abrir uma pasta</button></p>
-  <div id="recentBox" class="recent"></div>
+  <div class="empty-foot">
+    <p>A IA propõe CatID UCS, FXName, Description e Keywords. Tu ouves, corriges e gravas tudo dentro dos ficheiros.</p>
+    <div id="recentBox" class="recent"></div>
+  </div>
 </div>
 
 <div id="dropOverlay" class="drop-overlay hidden"><div>Larga os sons para os carregar</div></div>
@@ -62,7 +62,6 @@
 <main id="mainView" class="main hidden">
   <section class="list-pane">
     <div class="toolbar">
-      <input id="search" type="search" placeholder="Procurar nome, CatID, descrição, keywords…">
       <div class="filters" id="filters">
         <button data-f="all" class="on">Todos <span></span></button>
         <button data-f="sugerido">Por rever <span></span></button>
@@ -71,21 +70,21 @@
         <button data-f="novo">Por analisar <span></span></button>
         <button data-f="erro">Erros <span></span></button>
       </div>
+      <input id="search" type="search" placeholder="Procurar">
       <select id="sortSel" title="Ordem da lista (Confirmar e seguinte segue esta ordem)">
         <option value="nome">Por nome</option>
         <option value="duvida">Duvidosos primeiro</option>
       </select>
     </div>
-    <div class="selbar">
-      <label><input type="checkbox" id="selAll"> <span id="selCount">0 selecionados</span></label>
-      <span id="accuracy" class="accuracy hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
+    <div class="selbar hidden" id="selBar">
+      <span id="selCount">0 selecionados</span>
       <button id="btnBulk" class="small" disabled>Editar selecionados…</button>
       <button id="btnApproveSel" class="small" disabled>Aprovar selecionados</button>
     </div>
     <div class="table-wrap">
       <table class="files">
         <thead><tr>
-          <th class="c-chk"></th><th class="c-st"></th><th>Ficheiro</th><th class="c-dur">Dur.</th>
+          <th class="c-chk"><input type="checkbox" id="selAll" title="Selecionar todos"></th><th class="c-st"></th><th>Ficheiro</th><th class="c-dur">Dur.</th>
           <th class="c-cat">CatID</th><th>FXName</th><th>Description</th><th class="c-conf" title="Confiança da IA na categoria">IA</th>
         </tr></thead>
         <tbody id="rows"></tbody>
@@ -246,6 +245,16 @@
   </div>
 </div>
 
+<footer class="statusbar">
+  <span id="statusCount"></span>
+  <span id="accuracy" class="accuracy hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
+  <div id="jobBox" class="job hidden">
+    <div class="job-text" id="jobText"></div>
+    <div class="bar"><div id="jobBar"></div></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="status-keys"><kbd>espaço</kbd> ouvir &nbsp; <kbd>1-5</kbd> categoria &nbsp; <kbd id="keyMod">Ctrl</kbd><kbd>+Enter</kbd> confirmar</span>
+</footer>
 <div id="toast" class="toast hidden"></div>
 <audio id="player" preload="auto"></audio>
 <script src="/static/app.js"></script>
