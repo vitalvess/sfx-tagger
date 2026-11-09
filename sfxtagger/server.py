@@ -208,6 +208,13 @@ def browse(path: str = ""):
     return {"path": str(p), "parent": parent, "dirs": dirs, "wavs": wavs}
 
 
+def _fill_user_defaults(p: Project, s: dict) -> None:
+    """Preenche o designer/creator da biblioteca com as definições do utilizador."""
+    for k in ("designer", "creator_id"):
+        if s.get(k) and not p.defaults.get(k):
+            p.defaults[k] = s[k]
+
+
 class OpenReq(BaseModel):
     path: str
 
@@ -222,10 +229,7 @@ def open_folder(req: OpenReq):
         raise HTTPException(409, "Espera que a análise atual termine")
     _project = Project(p)
     s = load_settings()
-    # preenche o designer/creator por omissão com as definições do utilizador
-    for k in ("designer", "creator_id"):
-        if s.get(k) and not _project.defaults.get(k):
-            _project.defaults[k] = s[k]
+    _fill_user_defaults(_project, s)
     result = _project.scan()
     _project.learn_existing()  # confirmações antigas desta biblioteca também ensinam a IA
     recent =[str(p.resolve())] + [r for r in s["recent"] if r != str(p.resolve())]
@@ -281,6 +285,7 @@ def upload_new(req: NewBatchReq):
         n += 1
     folder.mkdir(parents=True, exist_ok=True)
     _project = Project(folder)
+    _fill_user_defaults(_project, load_settings())
     _project.scan()
     return _summary()
 

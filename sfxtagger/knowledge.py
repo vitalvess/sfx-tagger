@@ -160,7 +160,12 @@ class Knowledge:
                     from .ucs import load_ucs
                     index = {c.catid: n for n, c in enumerate(load_ucs())}
                     ids = [i for i in ids if self.meta[i]["catid"] in index]
-                    use2 = classifier.TRAIN.get("use_helper", False) and all(i in self.emb2 for i in ids)
+                    # um exemplo antigo sem o segundo modelo não pode desligá-lo para os outros todos
+                    # (ESC-50: 1 exemplo em 502 custava 3 pontos); só se desiste se faltar em muitos
+                    with2 = [i for i in ids if i in self.emb2]
+                    use2 = classifier.TRAIN.get("use_helper", False) and len(with2) >= 0.8 * len(ids)
+                    if use2:
+                        ids = with2
                     if ids:
                         X1 = np.stack([self.emb[i] for i in ids])
                         X2 = np.stack([self.emb2[i] for i in ids]) if use2 else None
@@ -221,6 +226,8 @@ class Knowledge:
                 eid = item.pop("id", None) or example_id(vec)
                 vec = vec / (np.linalg.norm(vec) + 1e-9)
                 item["origin"] = "importado"
+                if item.get("author") in (None, "", "anónimo") and manifest.get("exported_by"):
+                    item["author"] = manifest["exported_by"]   # quem exportou é quem o ensinou
                 authors[item.get("author", "anónimo")] += 1
                 old = self.meta.get(eid)
                 if old is None:
