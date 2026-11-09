@@ -799,6 +799,8 @@ async function showEvaluation() {
   if (s.known) notes.push(`${s.known} sons ficaram de fora porque a IA já os aprendeu (não seria um teste justo).`);
   if (s.no_label) notes.push(`${s.no_label} sons não tinham classificação e não contam.`);
   if (s.errors) notes.push(`${s.errors} ficheiros deram erro.`);
+  if (!s.n) notes.unshift("Não há nenhum som para comparar: a IA já aprendeu todos os sons classificados desta pasta. Abre uma pasta de sons que ela nunca aprendeu, como \"Sons de teste (ESC-50)\".");
+  $("#evalCsv").classList.toggle("hidden", !s.n);
   $("#evalBody").innerHTML = `
     <p class="muted">${s.n} sons de <code>${esc(s.folder)}</code>, comparados com a classificação certa. A IA só ouviu o áudio, sem ver o nome dos ficheiros.
       ${s.models} modelos, ${s.examples} exemplos aprendidos.</p>
