@@ -216,6 +216,8 @@ class Knowledge:
         authors = Counter()
         with self.lock:
             for n, (item, vec) in enumerate(zip(items, mat)):
+                if not item.get("catid"):   # ficheiro editado ou de outra versão
+                    continue
                 eid = item.pop("id", None) or example_id(vec)
                 vec = vec / (np.linalg.norm(vec) + 1e-9)
                 item["origin"] = "importado"
@@ -260,7 +262,7 @@ class Knowledge:
         for m in items:
             a = by_author[m.get("author") or "anónimo"]
             a["count"] += 1
-            cats[m["catid"]] += 1
+            cats[m.get("catid", "")] += 1
             if m.get("verdict"):
                 measured += 1
                 a["medidos"] += 1

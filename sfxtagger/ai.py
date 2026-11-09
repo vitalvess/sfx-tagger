@@ -86,6 +86,12 @@ def category_texts(c: ucs.UCSCategory) -> dict[str, list[str]]:
     }
 
 
+# Peso das palavras na decisão (ESC-50, nome certo vs enganador, folds 1-3). Um nome de ficheiro
+# pode enganar: com 0,4 a 1.ª sugestão certa caía de 77% para 35% num nome errado; com 0,15 fica
+# em 75%, e um nome certo continua a subir de 77% para 85%. O que a pessoa diz que ouve é fiável.
+NAME_WEIGHT = 0.15
+HEARD_WEIGHT = 0.4
+
 # Hierarquia UCS: reforça as subcategorias da categoria principal mais provável
 # (expoente afinado no ESC-50; 0 = desligado)
 FAMILY_GAMMA = 0.5
@@ -341,18 +347,20 @@ class Tagger:
                 top: int = 5, memory: list[tuple[str, float]] | None = None,
                 helper_emb: np.ndarray | None = None, clf: classifier.Model | None = None,
                 prior: np.ndarray | None = None, prior_weight: float = 0.0,
-                third_emb: np.ndarray | None = None) -> dict:
-        """words: do nome do ficheiro (peso forte); folder_words: das pastas (peso fraco,
-        porque muitas vezes são nomes de projeto, de gravador ou noutra língua);
+                third_emb: np.ndarray | None = None, heard: bool = False) -> dict:
+        """words: do nome do ficheiro, ou do que a pessoa escreveu em "O que ouves?" (heard=True,
+        peso forte); folder_words: das pastas (muitas vezes são nomes de projeto ou de gravador);
         memory: exemplos confirmados parecidos com este som [(catid, semelhança)];
         helper_emb: embedding do segundo modelo (se existir);
         clf: classificador treinado com os sons confirmados (knowledge.classifier())."""
-        logp = np.log(self.audio_probs(audio_emb, helper_emb, third_emb) + 1e-12)
+        audio_p = self.audio_probs(audio_emb, helper_emb, third_emb)
+        logp = np.log(audio_p + 1e-12)
         if prior is not None and prior_weight > 0:   # o que os outros takes da série ouvem
             logp = (1 - prior_weight) * logp + prior_weight * np.log(prior + 1e-12)
         used_name = False
         if words:
-            logp = 0.6 * logp + 0.4 * self._text_logp(words)
+            w = HEARD_WEIGHT if heard else NAME_WEIGHT
+            logp = (1 - w) * logp + w * self._text_logp(words)
             used_name = True
         folder_words = [w for w in folder_words if w not in words]
         if folder_words:
@@ -361,7 +369,8 @@ class Tagger:
         logp = np.where(self.suggestable, logp, -np.inf)
         probs = _softmax(logp)
         used_clf = False
-        if clf is not None and (helper_emb is not None or not clf.use_helper):
+        clf_usable = clf is not None and (helper_emb is not None or not clf.use_helper)
+        if clf_usable:
             before = probs
             probs = classifier.blend(probs, clf, audio_emb, helper_emb, **classifier.BLEND)[0]
             used_clf = bool(np.abs(probs - before).max() > 0.02)
@@ -369,8 +378,12 @@ class Tagger:
         if memory:
             # com classificador, a memória kNN só explica a sugestão: juntar os dois estragava
             # mais os sons de tipos que ninguém confirmou (ESC-50, exp_otimizacao.py treino)
-            probs, used_memory = self._apply_memory(probs, memory, mix=clf is None)
+            probs, used_memory = self._apply_memory(probs, memory, mix=not clf_usable)
         conf = float(confidence_value(probs))
+        # os limiares de confiança foram medidos só com áudio: se a 1.ª sugestão vem do nome do
+        # ficheiro e o áudio nem a põe entre as 5 melhores, a IA não pode dizer que tem a certeza
+        if used_name and int(np.argmax(probs)) not in np.argsort(audio_p)[::-1][:5]:
+            conf = min(conf, CONFIDENCE_LEVELS[1][1] - 0.01)
         order = np.argsort(probs)[::-1][:top]
         cats = [{"catid": self.categories[i].catid,
                  "category": self.categories[i].category,

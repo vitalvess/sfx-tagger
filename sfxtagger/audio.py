@@ -36,6 +36,7 @@ def load(path: str | Path) -> LoadedAudio:
     peak = 0.0
     clipped = 0
     parts = []
+    mix_energy, channel_energy = 0.0, np.zeros(max(info.channels, 1))
     frames_limit = int(MAX_ANALYSIS_SECONDS * info.samplerate)
     read = 0
     block = info.samplerate * 30
@@ -45,9 +46,19 @@ def load(path: str | Path) -> LoadedAudio:
         a = np.abs(blk)
         peak = max(peak, float(a.max(initial=0.0)))
         clipped += int((a >= 0.999).sum())
-        parts.append(_resample(blk.mean(axis=1), info.samplerate, ANALYSIS_SR))
+        down = blk.mean(axis=1)
+        parts.append(down)
+        mix_energy += float((down ** 2).sum())
+        channel_energy += (blk ** 2).sum(axis=0)
         read += len(blk)
     mono = np.concatenate(parts) if parts else np.zeros(0, np.float32)
+    if info.channels > 1 and mix_energy < 0.25 * float(channel_energy.mean()):
+        # canais em oposição de fase cancelam-se na mistura: ouve-se o canal mais forte
+        data, _ = sf.read(str(path), frames=frames_limit, dtype="float32", always_2d=True)
+        mono = data[:, int(channel_energy.argmax())]
+    # de uma só vez: reamostrar bloco a bloco criava pequenas falhas nas fronteiras
+    if len(mono):
+        mono = _resample(mono, info.samplerate, ANALYSIS_SR)
     meta = {
         "samplerate": info.samplerate,
         "channels": info.channels,

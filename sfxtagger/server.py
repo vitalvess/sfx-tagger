@@ -8,10 +8,11 @@ import sys
 import threading
 import time
 from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 import soundfile as sf
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -24,6 +25,22 @@ STATIC = Path(__file__).parent / "static"
 
 app = FastAPI(title="SFX Tagger", version=__version__)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
+@app.middleware("http")
+async def only_this_computer(request, call_next):
+    """Um site aberto no browser não pode falar com a app: bloqueia DNS rebinding (Host) e
+    pedidos vindos de outras páginas (Origin)."""
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0]
+    origin = request.headers.get("origin")
+    if host and host not in LOCAL_HOSTS:
+        return PlainTextResponse("Acesso recusado", status_code=403)
+    if origin and urlsplit(origin).hostname not in LOCAL_HOSTS:
+        return PlainTextResponse("Acesso recusado", status_code=403)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -53,8 +70,16 @@ def load_settings() -> dict:
 
 
 def save_settings(s: dict) -> None:
-    paths.settings_file().write_text(json.dumps(s, ensure_ascii=False, indent=1),
-                                     encoding="utf-8")
+    f = paths.settings_file()
+    tmp = f.with_name(f"{f.name}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, f)
+
+
+def _attachment(name: str) -> dict:
+    """Content-Disposition seguro para qualquer nome (acentos, aspas, japonês…)."""
+    plain = name.encode("ascii", "ignore").decode().replace('"', "").replace("\\", "") or "ficheiro"
+    return {"Content-Disposition": f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"}
 
 
 def project() -> Project:
@@ -126,7 +151,8 @@ def quit_app():
 def _idle_watchdog() -> None:
     while True:
         time.sleep(60)
-        busy = (_project and _project.job["running"]) or setup_ai.STATE["state"] == "a instalar"
+        busy = ((_project and _project.job["running"]) or setup_ai.STATE["state"] == "a instalar"
+                or precisao.STATE["state"] == "a instalar")
         if not busy and time.time() - _last_ping > IDLE_LIMIT:
             if _project:
                 _project.save()
@@ -210,6 +236,8 @@ def open_folder(req: OpenReq):
 
 @app.post("/api/rescan")
 def rescan():
+    if project().job["running"]:
+        raise HTTPException(409, "Espera que a análise termine")
     return {"scan": project().scan(), **_summary()}
 
 
@@ -339,8 +367,7 @@ def knowledge_export():
     data = get_knowledge().export_bytes(author)
     tag = re.sub(r"[^A-Za-z0-9_-]+", "", author) or "sfxtagger"
     name = f"conhecimento_{tag}_{datetime.now().strftime('%Y-%m-%d')}.sfxk"
-    return Response(data, media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return Response(data, media_type="application/octet-stream", headers=_attachment(name))
 
 
 @app.put("/api/knowledge/import")
@@ -424,8 +451,7 @@ def report_csv():
     p = project()
     data = "﻿" + p.report_csv()
     name = (p.root.name or "biblioteca") + "_relatorio_IA.csv"
-    return Response(data, media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return Response(data, media_type="text/csv; charset=utf-8", headers=_attachment(name))
 
 
 @app.get("/api/project")
@@ -446,10 +472,9 @@ def segments(rid: str):
     p = project()
     if rid not in p.records:
         raise HTTPException(404)
-    try:
-        return p.segments_for(rid)
-    except OSError:
+    if not p.abspath(p.records[rid]).exists():
         raise HTTPException(404, "Ficheiro não encontrado")
+    return p.segments_for(rid)
 
 
 @app.get("/api/similar/{rid}")
@@ -467,7 +492,7 @@ class AnalyzeReq(BaseModel):
 @app.post("/api/analyze")
 def analyze(req: AnalyzeReq):
     if not project().start_analysis(req.ids, req.force):
-        raise HTTPException(409, "Já há uma análise a decorrer")
+        raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
     return {"started": True}
 
 
@@ -554,8 +579,7 @@ def export_csv():
     p = project()
     data = "﻿" + p.export_csv()  # BOM para o Excel abrir acentos corretamente
     name = (p.root.name or "biblioteca") + "_metadados.csv"
-    return Response(data, media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return Response(data, media_type="text/csv; charset=utf-8", headers=_attachment(name))
 
 
 # --- áudio -------------------------------------------------------------------

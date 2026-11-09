@@ -699,7 +699,8 @@ function drawWave() {
   if (!c) return;
   const dpr = window.devicePixelRatio || 1;
   const w = c.clientWidth, h = c.clientHeight;
-  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+  if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
   const g = c.getContext("2d");
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
