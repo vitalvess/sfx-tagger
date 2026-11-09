@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, classifier, metadata, ucs
+from . import audio, classifier, metadata, precisao, ucs
 from .ai import GROUP_BETA, get_tagger, name_words
 from .knowledge import get_knowledge
 
@@ -47,6 +47,7 @@ class Project:
         self.defaults: dict[str, str] = {k: "" for k in DEFAULT_KEYS}
         self.embeddings: dict[str, np.ndarray] = {}
         self.embeddings2: dict[str, np.ndarray] = {}   # segundo modelo CLAP
+        self.embeddings3: dict[str, np.ndarray] = {}   # terceiro modelo (Precisão máxima)
         self.waveforms: dict[str, np.ndarray] = {}     # formas de onda (para o ecrã)
         self._arrays_dirty = False   # embeddings/formas de onda mudaram desde a última gravação
         self.warning = ""
@@ -66,6 +67,10 @@ class Project:
     @property
     def emb2_file(self) -> Path:
         return self.state_dir / "embeddings2.npz"
+
+    @property
+    def emb3_file(self) -> Path:
+        return self.state_dir / "embeddings3.npz"
 
     @property
     def wave_file(self) -> Path:
@@ -89,6 +94,9 @@ class Project:
         if self.emb2_file.exists():
             with np.load(self.emb2_file) as z:
                 self.embeddings2 = {k: z[k] for k in z.files}
+        if self.emb3_file.exists():
+            with np.load(self.emb3_file) as z:
+                self.embeddings3 = {k: z[k] for k in z.files}
         if self.wave_file.exists():
             with np.load(self.wave_file) as z:
                 self.waveforms = {k: z[k] for k in z.files}
@@ -116,7 +124,7 @@ class Project:
             # os ficheiros grandes só são regravados quando mudam (não a cada edição)
             if self._arrays_dirty:
                 for data, target in ((self.embeddings, self.emb_file), (self.embeddings2, self.emb2_file),
-                                     (self.waveforms, self.wave_file)):
+                                     (self.embeddings3, self.emb3_file), (self.waveforms, self.wave_file)):
                     if data:
                         tmp = target.with_name(target.stem + ".tmp.npz")
                         np.savez_compressed(tmp, **data)
@@ -247,6 +255,7 @@ class Project:
         try:
             self.job["phase"] = tagger.status
             tagger.ensure_loaded()
+            precisao.wait_if_starting()
         except Exception as e:
             traceback.print_exc()
             self.job.update(running=False, phase="erro",
@@ -287,15 +296,18 @@ class Project:
         windows = audio.best_windows(loaded.mono)
         emb = tagger.embed_audio(windows)
         emb2 = tagger.embed_audio_helper(windows)
+        emb3 = precisao.embed(windows) if precisao.active() else None
         kb = get_knowledge()
         sug = tagger.suggest(emb, words, folder, memory=kb.neighbours(emb),
-                             helper_emb=emb2, clf=self._classifier())
+                             helper_emb=emb2, clf=self._classifier(), third_emb=emb3)
         sug["name_words"] = words
         sug["folder_words"] = folder
         with self.lock:
             self.embeddings[rec["id"]] = emb
             if emb2 is not None:
                 self.embeddings2[rec["id"]] = emb2
+            if emb3 is not None:
+                self.embeddings3[rec["id"]] = emb3
             self.waveforms[rec["id"]] = wave
             self._arrays_dirty = True
             rec["tech"] = tech
@@ -416,7 +428,8 @@ class Project:
         for ids in groups.values():
             if len(ids) < 2:
                 continue
-            P = np.stack([tagger.audio_probs(self.embeddings[r], self.embeddings2.get(r)) for r in ids])
+            P = np.stack([tagger.audio_probs(self.embeddings[r], self.embeddings2.get(r),
+                                             self.embeddings3.get(r)) for r in ids])
             for n, r in enumerate(ids):
                 # a opinião dos OUTROS takes (sem contar o próprio duas vezes)
                 priors[r] = np.delete(P, n, axis=0).mean(0)
@@ -437,7 +450,8 @@ class Project:
                 emb = self.embeddings[rid]
                 sug = tagger.suggest(emb, old.get("name_words") or [], old.get("folder_words") or [],
                                      memory=kb.neighbours(emb), helper_emb=self.embeddings2.get(rid),
-                                     clf=clf, prior=priors[rid], prior_weight=GROUP_BETA)
+                                     clf=clf, prior=priors[rid], prior_weight=GROUP_BETA,
+                                     third_emb=self.embeddings3.get(rid))
                 for k in ("name_words", "folder_words", "from_heard"):
                     if k in old:
                         sug[k] = old[k]
@@ -586,7 +600,8 @@ class Project:
                 sug = tagger.suggest(emb, words, old.get("folder_words") or [],
                                      memory=kb.neighbours(emb),
                                      helper_emb=self.embeddings2.get(rec["id"]), clf=clf,
-                                     prior=priors.get(rec["id"]), prior_weight=GROUP_BETA)
+                                     prior=priors.get(rec["id"]), prior_weight=GROUP_BETA,
+                                     third_emb=self.embeddings3.get(rec["id"]))
                 sug["name_words"] = words
                 sug["folder_words"] = old.get("folder_words") or []
                 sug["from_heard"] = old.get("from_heard", False)
@@ -617,7 +632,8 @@ class Project:
             tagger.ensure_loaded()
             kb = get_knowledge()
             sug = tagger.suggest(emb, name_words(text), memory=kb.neighbours(emb),
-                                 helper_emb=self.embeddings2.get(rid), clf=self._classifier())
+                                 helper_emb=self.embeddings2.get(rid), clf=self._classifier(),
+                                 third_emb=self.embeddings3.get(rid))
             with self.lock:
                 old = rec.get("suggestion") or {}
                 sug["name_words"] = name_words(text)

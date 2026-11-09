@@ -347,6 +347,7 @@ function renderDetail() {
     </div>
 
     ${sug ? `<div class="section"><h3>Sugestões da IA ${sug.confidence ? `<span class="conf-badge ${sug.confidence.level}" title="${esc(CONF_TEXT[sug.confidence.level])}">confiança ${{ alta: "alta", media: "média", baixa: "baixa" }[sug.confidence.level]}</span>` : ""}</h3><div class="sugs">${sugHtml}</div>
+      ${sug.models === 3 ? '<div class="note">Precisão máxima: três modelos a ouvir.</div>' : ""}
       ${sug.trained ? '<div class="note">Ajustado pelo classificador treinado com os sons já confirmados.</div>' : ""}
       ${sug.memory?.length ? `<div class="note">Aprendido com sons já confirmados: ${sug.memory.slice(0, 3).map((m) =>
         `${m.n} som${m.n > 1 ? "s" : ""} parecido${m.n > 1 ? "s" : ""} confirmado${m.n > 1 ? "s" : ""} como <b>${esc(m.catid)}</b> (${Math.round(m.best * 100)}% semelhante)`).join("; ")}</div>` : ""}
@@ -1110,15 +1111,48 @@ $$(".modal:not([data-locked])").forEach((m) => {
   $$("[data-close]", m).forEach((b) => b.onclick = () => m.classList.add("hidden"));
 });
 
+// Modo Precisão máxima: o terceiro modelo descarrega-se em segundo plano
+async function showPrecision() {
+  const note = $("#precisionNote");
+  try {
+    const p = (await api("/api/status")).precision;
+    const txt = { "a instalar": `${p.step}${p.done_mb ? ` ${p.done_mb} de ${p.total_mb} MB` : ""}`,
+      erro: "Não foi possível preparar o terceiro modelo. Confirma a internet e volta a ligar esta opção.",
+      ok: p.enabled ? "Terceiro modelo pronto." : "" }[p.state] || "";
+    note.textContent = txt;
+    note.classList.toggle("hidden", !txt);
+  } catch { note.classList.add("hidden"); }
+}
+
+async function watchPrecision() {
+  toast("A preparar o modo Precisão máxima em segundo plano. Podes continuar a trabalhar.");
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000));
+    let p;
+    try { p = (await api("/api/status")).precision; } catch { continue; }
+    if (!$("#defaultsModal").classList.contains("hidden")) showPrecision();
+    if (p.state === "erro") { toast("Não foi possível preparar o terceiro modelo. Confirma a internet.", true); return; }
+    if (p.state === "ok") {
+      toast("Precisão máxima pronta. Para a aplicar aos sons já analisados: Analisar > Reanalisar tudo.");
+      return;
+    }
+  }
+}
+
 $("#btnDefaults").onclick = () => {
   $("#defaultsForm").innerHTML = DEFAULT_KEYS.map((k) => `<div class="field"><label>${FIELD_LABELS[k]}</label>
     <input data-d="${k}" value="${esc(S.defaults[k])}" placeholder="${k === "creator_id" ? "ex.: as tuas iniciais" : ""}"></div>`).join("");
   $("#defTranslate").checked = S.settings.dictate_translate !== false;
+  $("#defPrecision").checked = !!S.settings.max_precision;
+  showPrecision();
   $("#defaultsModal").classList.remove("hidden");
 };
 $("#defSave").onclick = async () => {
   S.settings.dictate_translate = $("#defTranslate").checked;
-  api("/api/settings", { method: "POST", body: { dictate_translate: S.settings.dictate_translate } }).catch(() => {});
+  const turnedOn = $("#defPrecision").checked && !S.settings.max_precision;
+  S.settings.max_precision = $("#defPrecision").checked;
+  api("/api/settings", { method: "POST", body: { dictate_translate: S.settings.dictate_translate, max_precision: S.settings.max_precision } })
+    .then(() => { if (turnedOn) watchPrecision(); }).catch(() => {});
   const defaults = {};
   $$("[data-d]").forEach((i) => (defaults[i.dataset.d] = i.value.trim()));
   try {

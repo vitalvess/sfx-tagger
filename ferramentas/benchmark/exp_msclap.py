@@ -7,6 +7,10 @@ Passo 1, num ambiente à parte com o pacote msclap (não faz parte da app):
 Passo 2, no ambiente da app:
     python ferramentas/benchmark/exp_msclap.py eval <pasta ESC-50>
   -> compara: app atual, MS-CLAP sozinho, e os três juntos (peso afinado nos folds 1-3).
+
+Passo 3, confirma que o código que vai na app (precisao.py) dá o mesmo que o pacote original:
+    python ferramentas/benchmark/exp_msclap.py app <pasta ESC-50>
+  -> precisão e calibração da confiança com os três modelos.
 """
 from __future__ import annotations
 
@@ -92,5 +96,45 @@ def evaluate(esc: Path) -> None:
     print(f"3 modelos (escala {scale}, peso {w}): dev {m}  TESTE {metrics(Q, d1, d1.test)}")
 
 
+def app(esc: Path) -> None:
+    from bench import Data, metrics
+    from sfxtagger import audio, precisao
+    from sfxtagger.ai import HELPER_MODEL, Tagger
+
+    d1, d2 = Data(esc), Data(esc, HELPER_MODEL)
+    t = Tagger()
+    t.ensure_loaded()
+    precisao._load()
+    cache = esc.parent / "emb_msclap_app.npz"
+    if cache.exists():
+        with np.load(cache) as z:
+            X3 = np.stack([z[r["filename"]] for r in d1.meta])
+    else:
+        rows = []
+        for i, r in enumerate(d1.meta):
+            x = audio.load(esc / "audio" / r["filename"]).mono
+            rows.append(precisao.embed(audio.best_windows(x)))
+            if i % 200 == 0:
+                print(f"  {i}/{len(d1.meta)}", flush=True)
+        X3 = np.stack(rows)
+        np.savez_compressed(cache, **{r["filename"]: v for r, v in zip(d1.meta, X3)})
+    with np.load(esc.parent / "emb_msclap.npz") as z:
+        orig = np.stack([z[r["filename"]] for r in d1.meta])
+    cos = (X3 * orig).sum(1)
+    print(f"semelhança com o pacote original: média {cos.mean():.4f}, mínimo {cos.min():.4f}")
+    P = np.stack([t.audio_probs(a, b) for a, b in zip(d1.X, d2.X)])
+    P3 = np.stack([precisao.probs(e, t.suggestable) for e in X3])
+    Q = (1 - precisao.WEIGHT) * P + precisao.WEIGHT * P3
+    print("2 modelos, teste:", metrics(P, d1, d1.test))
+    print("3 modelos, teste:", metrics(Q, d1, d1.test))
+    hit = d1.ok[np.arange(len(Q)), Q.argmax(1)]
+    conf = Q.max(1)
+    print("calibração (dev | teste):")
+    for lo, hi in ((0, .2), (.2, .3), (.3, .4), (.4, .5), (.5, .6), (.6, .7), (.7, .8), (.8, 1.01)):
+        a = d1.dev & (conf >= lo) & (conf < hi)
+        b = d1.test & (conf >= lo) & (conf < hi)
+        print(f"  {lo:.1f}-{hi:.1f}: {100 * hit[a].mean():5.1f}% ({a.sum():3}) | {100 * hit[b].mean():5.1f}% ({b.sum():3})")
+
+
 if __name__ == "__main__":
-    {"embed": embed, "eval": evaluate}[sys.argv[1]](Path(sys.argv[2]))
+    {"embed": embed, "eval": evaluate, "app": app}[sys.argv[1]](Path(sys.argv[2]))

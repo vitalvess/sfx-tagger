@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, paths, setup_ai, ucs
+from . import __version__, paths, precisao, setup_ai, ucs
 from .ai import get_tagger
 from .knowledge import get_knowledge
 from .project import Project
@@ -86,6 +86,7 @@ def status():
             "job": dict(_project.job) if _project else None,
             "settings": load_settings(),
             "setup": setup_ai.status(),
+            "precision": precisao.status(),
             "standalone": STANDALONE}
 
 
@@ -514,6 +515,7 @@ def defaults(req: DefaultsReq):
 
 class SettingsReq(BaseModel):
     dictate_translate: bool | None = None
+    max_precision: bool | None = None
 
 
 @app.post("/api/settings")
@@ -521,7 +523,11 @@ def update_settings(req: SettingsReq):
     s = load_settings()
     if req.dictate_translate is not None:
         s["dictate_translate"] = req.dictate_translate
+    if req.max_precision is not None:
+        s["max_precision"] = req.max_precision
     save_settings(s)
+    if s.get("max_precision"):
+        precisao.ensure_started()
     return s
 
 

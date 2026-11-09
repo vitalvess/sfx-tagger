@@ -78,7 +78,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.com_ia }}" = "false" ]; then
             python ferramentas/ci/teste_fim_a_fim.py --sem-ia
           else
-            python ferramentas/ci/teste_fim_a_fim.py
+            python ferramentas/ci/teste_fim_a_fim.py --precisao
           fi
 
       - name: Confirmar que corre nativo (sem emulação Intel nos Macs com chip M)
@@ -140,7 +140,7 @@ jobs:
           if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.com_ia }}" -eq "false") {
             python ferramentas/ci/teste_fim_a_fim.py --sem-ia
           } else {
-            python ferramentas/ci/teste_fim_a_fim.py
+            python ferramentas/ci/teste_fim_a_fim.py --precisao
           }
 
       - name: Registos

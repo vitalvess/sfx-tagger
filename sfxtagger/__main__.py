@@ -61,8 +61,11 @@ def main() -> None:
         setup_ai.ensure_started()
     else:
         # carrega os modelos já, em segundo plano: a primeira análise não fica à espera
+        from . import precisao
         from .ai import get_tagger
         threading.Thread(target=get_tagger().ensure_loaded, daemon=True).start()
+        if precisao.enabled():
+            precisao.ensure_started()
 
     port = _free_port(args.port)
     url = f"http://127.0.0.1:{port}"
