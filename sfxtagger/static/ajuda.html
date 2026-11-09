@@ -7,24 +7,24 @@
 <link rel="stylesheet" href="/static/style.css">
 <style>
   body { overflow: auto; display: block; }
-  .doc { max-width: 780px; margin: 0 auto; padding: 28px 16px 60px; font-size: 14.5px; line-height: 1.6; }
-  .doc h1 { font-size: 26px; margin: 0 0 4px; }
-  .doc h2 { font-size: 19px; margin: 36px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
-  .doc h3 { font-size: 15px; margin: 20px 0 6px; }
+  .doc { max-width: 780px; margin: 0 auto; padding: 28px 16px 60px; font-size: 15px; line-height: 1.55; }
+  .doc h1 { font-size: 28px; font-weight: 500; margin: 0 0 4px; }
+  .doc h2 { font-size: 19px; font-weight: 500; margin: 36px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .doc h3 { font-size: 15px; font-weight: 600; margin: 20px 0 6px; }
   .doc p, .doc li { color: var(--text); }
   .doc .lead { color: var(--muted); font-size: 15.5px; margin-bottom: 18px; }
   .doc ol, .doc ul { padding-left: 22px; }
   .doc li { margin-bottom: 6px; }
   .doc table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 14px; }
   .doc th, .doc td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
-  .doc th { color: var(--muted); font-weight: 600; font-size: 12px; }
-  .doc .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; }
-  .doc .toc a { color: var(--text); }
-  .doc a { color: var(--accent); }
-  .doc .note { background: var(--sel); border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; }
+  .doc th { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .doc .toc { border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .doc .toc a { color: var(--muted); }
+  .doc a { color: var(--text); text-underline-offset: 2px; }
+  .doc .note { border-left: 2px solid var(--line-strong); padding: 2px 12px; margin: 12px 0; font-size: 13.5px; }
   .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0; }
-  .flow .box { flex: 1 1 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
-  .flow .box b { display: block; color: var(--accent); margin-bottom: 3px; }
+  .flow .box { flex: 1 1 150px; border-top: 1px solid var(--line-strong); padding: 8px 0; font-size: 14px; }
+  .flow .box b { display: block; font-weight: 500; margin-bottom: 3px; }
   .flow .arrow { align-self: center; color: var(--muted); font-size: 18px; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   @media (max-width: 600px) { .flow .arrow { display: none; } }

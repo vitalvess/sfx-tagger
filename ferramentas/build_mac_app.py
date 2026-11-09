@@ -127,10 +127,11 @@ def _icon(size: int) -> bytes:
     cy = np.clip(y, m + r, s - m - r)
     inside = np.clip(r - np.hypot(x - cx, y - cy) + 0.5, 0, 1)
     t = (y - m) / (s - 2 * m)        # gradiente vertical laranja -> âmbar escuro
-    top, bot = np.array([246, 176, 72]), np.array([214, 112, 22])
+    top, bot = np.array([26, 24, 21]), np.array([14, 13, 12])
     rgb = top * (1 - t[..., None]) + bot * t[..., None]
     # barras da forma de onda
     bars = np.zeros((s, s), np.float32)
+    playhead = np.zeros((s, s), bool)
     heights = [0.18, 0.34, 0.55, 0.30, 0.72, 0.46, 0.62, 0.26, 0.40, 0.16]
     n = len(heights)
     area_w = s - 2 * m - s * 0.22
@@ -141,7 +142,10 @@ def _icon(size: int) -> bytes:
         half = hgt * (s - 2 * m) * 0.5
         sel = (x >= bx) & (x <= bx + bw * 0.56) & (np.abs(y - s / 2) <= half)
         bars[sel] = 1
-    rgb = rgb * (1 - bars[..., None]) + np.array([255, 255, 255]) * bars[..., None]
+        if i == 4:
+            playhead |= sel
+    rgb = rgb * (1 - bars[..., None]) + np.array([232, 226, 214]) * bars[..., None]
+    rgb[playhead] = (255, 90, 54)
     alpha = inside * 255
     img = np.dstack([rgb, alpha]).clip(0, 255).astype(np.uint8)
     return _png(img)

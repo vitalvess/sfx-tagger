@@ -197,6 +197,8 @@ function matches(r) {
 function renderList() {
   const counts = { all: S.records.length, novo: 0, sugerido: 0, revisto: 0, gravado: 0, erro: 0 };
   S.records.forEach((r) => counts[statusOf(r)]++);
+  $("#statusCount").innerHTML = S.records.length
+    ? `<b>${counts.all}</b> sons &nbsp; <b>${counts.sugerido}</b> por rever &nbsp; <b>${counts.gravado}</b> gravados` : "";
   $$("#filters button").forEach((b) => {
     b.classList.toggle("on", b.dataset.f === S.filter);
     $("span", b).textContent = counts[b.dataset.f] || 0;
@@ -236,13 +238,14 @@ function updateAccuracy() {
   const right = reviewed.filter((r) => r.review.verdict === "certo").length;
   const top5 = reviewed.filter((r) => r.review.verdict === "top5").length;
   el.classList.remove("hidden");
-  el.innerHTML = `IA acertou <b>${right}/${reviewed.length}</b> (${Math.round((right / reviewed.length) * 100)}%)` +
-    (top5 ? ` · +${top5} nas 5 sugestões` : "");
+  el.innerHTML = `IA acertou <b>${right}/${reviewed.length}</b> ${Math.round((right / reviewed.length) * 100)}%` +
+    (top5 ? ` +${top5} nas 5 sugestões` : "");
 }
 
 function updateSelBar() {
   const n = S.selected.size;
   $("#selCount").textContent = `${n} selecionado${n === 1 ? "" : "s"}`;
+  $("#selBar").classList.toggle("hidden", !n);
   $("#btnBulk").disabled = !n;
   $("#btnApproveSel").disabled = !n;
   $("#selAll").checked = n > 0 && S.view.every((id) => S.selected.has(id));
@@ -331,7 +334,7 @@ function renderDetail() {
   el.innerHTML = `
     <div class="d-head">
       <div class="d-name">${esc(basename(r.path))}</div>
-      <div class="d-path">${esc(r.path)}</div>
+      <div class="d-path">${r.path === basename(r.path) ? "" : esc(r.path)}</div>
       <div class="tech">${techTags(r.tech)}</div>
     </div>
     ${r.error ? `<div class="err-box">Erro: ${esc(r.error)}</div>` : ""}
@@ -401,8 +404,8 @@ function renderDetail() {
 
     <div class="actions">
       <button class="primary" id="btnApprove" title="Confirma a categoria e os campos deste som">Confirmar e seguinte <span class="kbd">${MOD}+Enter</span></button>
-      ${r.group ? '<button id="btnGroup" title="Seleciona os outros takes da mesma série">Selecionar série</button>' : ""}
-      ${sug ? '<button id="btnSimilar" title="Seleciona sons parecidos (pela IA)">Selecionar semelhantes</button>' : ""}
+      ${r.group ? '<button id="btnGroup" title="Seleciona os outros takes da mesma série">Série</button>' : ""}
+      ${sug ? '<button id="btnSimilar" title="Seleciona sons parecidos (pela IA)">Semelhantes</button>' : ""}
       <button id="btnReanalyze" title="Voltar a analisar este som">Reanalisar</button>
     </div>`;
 
@@ -701,21 +704,35 @@ function drawWave() {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
   const css = getComputedStyle(document.documentElement);
-  const col = css.getPropertyValue("--wave").trim();
-  const played = css.getPropertyValue("--wave-played").trim();
+  const v = (name) => css.getPropertyValue(name).trim();
+  const col = v("--wave"), played = v("--wave-played"), rule = v("--display-line");
   const prog = player.duration ? player.currentTime / player.duration : 0;
-  if (!peaks.length) {
-    g.fillStyle = col; g.fillRect(0, h / 2, w, 1);
-  } else {
-    const n = peaks.length;
-    for (let x = 0; x < w; x++) {
-      const v = peaks[Math.floor((x / w) * n)] || 0;
-      const bh = Math.max(1, v * (h - 6));
-      g.fillStyle = x / w < prog ? played : col;
-      g.fillRect(x, (h - bh) / 2, 1, bh);
+  const top = 16;                      // régua do tempo
+  const mid = Math.round(top + (h - top) / 2);
+  g.fillStyle = rule;
+  g.fillRect(0, top - 1, w, 1);
+  g.fillRect(0, mid, w, 1);
+  const dur = player.duration || S.activeFull?.tech?.duration || 0;
+  if (dur) {
+    const step = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300].find((s) => (s / dur) * w >= 64) || 600;
+    g.font = `10px ${v("--mono")}`;
+    g.textBaseline = "middle";
+    for (let t = 0; t < dur; t += step) {
+      const x = Math.round((t / dur) * w);
+      g.fillStyle = rule; g.fillRect(x, 0, 1, top);
+      g.fillStyle = v("--display-text");
+      const m = Math.floor(t / 60), sec = t - m * 60;
+      g.fillText(`${m}:${(step < 1 ? sec.toFixed(1).padStart(4, "0") : String(Math.round(sec)).padStart(2, "0"))}`, x + 4, top / 2);
     }
   }
-  if (prog) { g.fillStyle = played; g.fillRect(Math.floor(prog * w), 0, 1, h); }
+  const n = peaks.length;
+  for (let x = 0; n && x < w; x++) {
+    const p = peaks[Math.floor((x / w) * n)] || 0;
+    const bh = Math.max(1, p * (h - top - 8));
+    g.fillStyle = x / w < prog ? played : col;
+    g.fillRect(x, mid - bh / 2, 1, bh);
+  }
+  if (prog) { g.fillStyle = v("--accent"); g.fillRect(Math.floor(prog * w), 0, 1, h); }
 }
 window.addEventListener("resize", drawWave);
 
@@ -824,6 +841,7 @@ async function uploadFiles(fileList) {
 
 $("#btnUpload").onclick = () => $("#fileInput").click();
 $("#btnUpload2").onclick = () => $("#fileInput").click();
+$("#keyMod").textContent = MOD;
 $("#fileInput").onchange = (e) => { uploadFiles(e.target.files); e.target.value = ""; };
 
 let dragDepth = 0;
