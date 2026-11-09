@@ -32,11 +32,17 @@ STATE = {"state": "desligado", "step": "", "error": ""}
 _lock = threading.Lock()
 _model = None
 _matrix: np.ndarray | None = None
+_enabled_seen: tuple[int, bool] | None = None   # (data do ficheiro, valor): evita reler o JSON
 
 
 def enabled() -> bool:
+    global _enabled_seen
     try:
-        return bool(json.loads(paths.settings_file().read_text(encoding="utf-8")).get("max_precision"))
+        f = paths.settings_file()
+        stamp = f.stat().st_mtime_ns
+        if _enabled_seen is None or _enabled_seen[0] != stamp:
+            _enabled_seen = (stamp, bool(json.loads(f.read_text(encoding="utf-8")).get("max_precision")))
+        return _enabled_seen[1]
     except (OSError, ValueError):
         return False
 
@@ -128,9 +134,10 @@ def active() -> bool:
 
 
 def wait_if_starting(timeout: float = 120.0) -> None:
-    """Se o modelo já está descarregado e a carregar, a análise espera por ele."""
+    """Se o modelo já está no disco e a carregar, a análise espera por ele (só não espera
+    por um download, que pode demorar muito)."""
     t0 = time.time()
-    while (enabled() and STATE["state"] == "a instalar" and STATE["step"].startswith("A carregar")
+    while (enabled() and STATE["state"] == "a instalar" and not STATE["step"].startswith("A descarregar")
            and time.time() - t0 < timeout):
         time.sleep(0.2)
 

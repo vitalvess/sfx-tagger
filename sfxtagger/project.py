@@ -10,6 +10,7 @@ import re
 import threading
 import time
 import traceback
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,7 @@ class Project:
         self.embeddings3: dict[str, np.ndarray] = {}   # terceiro modelo (Precisão máxima)
         self.waveforms: dict[str, np.ndarray] = {}     # formas de onda (para o ecrã)
         self._arrays_dirty = False   # embeddings/formas de onda mudaram desde a última gravação
+        self.writing = False         # a gravar nos WAV (não pode começar uma análise)
         self.warning = ""
         self.job = {"running": False, "phase": "", "done": 0, "total": 0,
                     "current": "", "errors": 0, "message": ""}
@@ -88,18 +90,10 @@ class Project:
                 os.replace(self.state_file, bad)
                 self.warning = ("O ficheiro de progresso desta pasta estava danificado e foi guardado "
                                 f"à parte ({bad.name}). Os metadados já gravados nos WAV não se perderam.")
-        if self.emb_file.exists():
-            with np.load(self.emb_file) as z:
-                self.embeddings = {k: z[k] for k in z.files}
-        if self.emb2_file.exists():
-            with np.load(self.emb2_file) as z:
-                self.embeddings2 = {k: z[k] for k in z.files}
-        if self.emb3_file.exists():
-            with np.load(self.emb3_file) as z:
-                self.embeddings3 = {k: z[k] for k in z.files}
-        if self.wave_file.exists():
-            with np.load(self.wave_file) as z:
-                self.waveforms = {k: z[k] for k in z.files}
+        self.embeddings = self._load_arrays(self.emb_file)
+        self.embeddings2 = self._load_arrays(self.emb2_file)
+        self.embeddings3 = self._load_arrays(self.emb3_file)
+        self.waveforms = self._load_arrays(self.wave_file)
         # versões antigas guardavam a forma de onda dentro do projeto.json
         for rid, rec in self.records.items():
             wf = (rec.get("tech") or {}).pop("waveform", None)
@@ -107,7 +101,31 @@ class Project:
                 self.waveforms[rid] = np.asarray(wf, np.float16)
                 self._arrays_dirty = True
 
+    def _load_arrays(self, f: Path) -> dict[str, np.ndarray]:
+        """Um ficheiro danificado (ex.: conflito do OneDrive) não pode impedir de abrir a pasta."""
+        if not f.exists():
+            return {}
+        try:
+            with np.load(f) as z:
+                return {k: z[k] for k in z.files}
+        except (OSError, ValueError, EOFError, zipfile.BadZipFile):
+            try:
+                os.replace(f, f.with_name(f"{f.stem}.danificado-{int(_now())}.npz"))
+            except OSError:
+                pass
+            self.warning = ("Parte do progresso desta pasta estava danificada. Se as sugestões "
+                            "parecerem incompletas, usa Analisar > Reanalisar tudo.")
+            return {}
+
     def save(self) -> None:
+        try:
+            self._save()
+        except OSError as e:
+            print(f"  Não foi possível guardar o progresso: {e}", flush=True)
+            self.warning = ("Não é possível guardar o progresso nesta pasta (pode ser só de leitura). "
+                            "O que fizeres pode perder-se ao fechar a app.")
+
+    def _save(self) -> None:
         with self.lock:
             self.state_dir.mkdir(exist_ok=True)
             if os.name == "nt":  # pasta escondida no Windows
@@ -201,7 +219,10 @@ class Project:
         buckets: dict[str, list[str]] = {}
         for rid, rec in self.records.items():
             p = Path(rec["path"])
-            stem = re.sub(r"[\s_\-.]*\(?\d+\)?$", "", p.stem).strip(" _-.").lower()
+            # num nome UCS o número da série está no FXName, a meio do nome do ficheiro
+            uname = ucs.parse_filename(p.stem)
+            name = f"{uname['catid']} {uname['fxname']}" if uname else p.stem
+            stem = re.sub(r"[\s_\-.]*\(?\d+\)?$", "", name).strip(" _-.").lower()
             # "ZOOM0001", "ZOOM0002" não são uma série: o nome não diz nada sobre o som
             if not stem or not name_words(stem):
                 continue
@@ -226,10 +247,11 @@ class Project:
         v = self.embeddings.get(rid)
         if v is None:
             return []
-        ids = [k for k in self.embeddings if k != rid and k in self.records]
-        if not ids:
-            return []
-        mat = np.stack([self.embeddings[k] for k in ids])
+        with self.lock:
+            ids = [k for k in self.embeddings if k != rid and k in self.records]
+            if not ids:
+                return []
+            mat = np.stack([self.embeddings[k] for k in ids])
         sims = mat @ v
         order = np.argsort(sims)[::-1][:n]
         return [{"id": ids[i], "sim": round(float(sims[i]), 3)} for i in order
@@ -238,7 +260,7 @@ class Project:
     # --- análise -----------------------------------------------------------
     def start_analysis(self, ids: list[str] | None, force: bool) -> bool:
         with self.lock:
-            if self.job["running"]:
+            if self.job["running"] or self.writing:
                 return False
             if ids:
                 todo = [i for i in ids if i in self.records]
@@ -263,6 +285,7 @@ class Project:
             return
         self.job["phase"] = "a analisar"
         last_save = _now()
+        save_cost = 0.0
         for rid in todo:
             rec = self.records.get(rid)
             if rec is None:
@@ -275,14 +298,22 @@ class Project:
                 rec["error"] = f"Erro na análise: {e}"
                 self.job["errors"] += 1
             self.job["done"] += 1
-            if _now() - last_save > 10:
+            # em bibliotecas grandes guardar demora: nunca mais de ~3% do tempo total
+            if _now() - last_save > max(10.0, 30 * save_cost):
+                t0 = _now()
                 self.save()
                 last_save = _now()
-        self._compute_groups()
-        self.job["phase"] = "a comparar takes da mesma série"
-        self._apply_group_consensus(tagger, todo)
-        self.save()
-        self.job.update(running=False, phase="concluído", current="")
+                save_cost = last_save - t0
+        try:
+            with self.lock:
+                self._compute_groups()
+            self.job["phase"] = "a comparar takes da mesma série"
+            self._apply_group_consensus(tagger, todo)
+            self.save()
+            self.job.update(running=False, phase="concluído", current="")
+        except Exception as e:  # noqa: BLE001 — sem isto a app ficava presa em "a analisar"
+            traceback.print_exc()
+            self.job.update(running=False, phase="erro", current="", message=f"A análise terminou com um erro: {e}")
 
     def _analyze_one(self, rec: dict, tagger) -> None:
         p = self.abspath(rec)
@@ -392,14 +423,17 @@ class Project:
         base = kb.classifier()
         if base is None:
             return None
-        n = len(self.embeddings)
+        with self.lock:   # a análise pode estar a acrescentar sons noutra thread
+            embeddings = dict(self.embeddings)
+            embeddings2 = dict(self.embeddings2)
+        n = len(embeddings)
         cached = getattr(self, "_clf_cache", None)
         if (not fresh and cached and cached[0] is base
                 and n < max(cached[1] * 1.25, cached[1] + 25)):
             return cached[2]
         X1, X2 = [], []
-        for rid, e in self.embeddings.items():
-            e2 = self.embeddings2.get(rid)
+        for rid, e in embeddings.items():
+            e2 = embeddings2.get(rid)
             if base.use_helper and e2 is None:
                 continue
             X1.append(e)
@@ -451,7 +485,8 @@ class Project:
                 sug = tagger.suggest(emb, old.get("name_words") or [], old.get("folder_words") or [],
                                      memory=kb.neighbours(emb), helper_emb=self.embeddings2.get(rid),
                                      clf=clf, prior=priors[rid], prior_weight=GROUP_BETA,
-                                     third_emb=self.embeddings3.get(rid))
+                                     third_emb=self.embeddings3.get(rid),
+                                     heard=bool(old.get("from_heard")))
                 for k in ("name_words", "folder_words", "from_heard"):
                     if k in old:
                         sug[k] = old[k]
@@ -488,7 +523,7 @@ class Project:
                 # a IA não sabe bem o que é: não inventa fonte nem ação, fica no que se ouve
                 attrs.pop("source", None)
                 attrs.pop("action", None)
-            f["description"] = _draft_description(subject, attrs, tech, rec.get("segments") or [])
+            f["description"] = _draft_description(subject, attrs, tech)
         for k in DEFAULT_KEYS:
             if not f.get(k) and self.defaults.get(k):
                 f[k] = self.defaults[k]
@@ -499,10 +534,9 @@ class Project:
         cat = ucs.lookup(catid)
         f = rec["fields"]
         f["catid"] = catid
-        if cat:
-            f["category"] = cat.category
-            f["subcategory"] = cat.subcategory
-            f["category_full"] = cat.full
+        f["category"] = cat.category if cat else ""
+        f["subcategory"] = cat.subcategory if cat else ""
+        f["category_full"] = cat.full if cat else ""
 
     def update_fields(self, ids: list[str], fields: dict, status: str | None = None) -> None:
         with self.lock:
@@ -523,6 +557,8 @@ class Project:
                     rec["status"] = status
                     if status == "revisto":
                         self._record_review(rec)
+                elif "catid" in fields and (rec.get("review") or {}).get("verdict"):
+                    self._record_review(rec)   # corrigido depois de confirmar: a IA aprende a certa
             self.save()
 
     # --- confirmação humana (mede se a IA acertou) ----------------------------
@@ -601,7 +637,8 @@ class Project:
                                      memory=kb.neighbours(emb),
                                      helper_emb=self.embeddings2.get(rec["id"]), clf=clf,
                                      prior=priors.get(rec["id"]), prior_weight=GROUP_BETA,
-                                     third_emb=self.embeddings3.get(rec["id"]))
+                                     third_emb=self.embeddings3.get(rec["id"]),
+                                     heard=bool(old.get("from_heard")))
                 sug["name_words"] = words
                 sug["folder_words"] = old.get("folder_words") or []
                 sug["from_heard"] = old.get("from_heard", False)
@@ -633,7 +670,7 @@ class Project:
             kb = get_knowledge()
             sug = tagger.suggest(emb, name_words(text), memory=kb.neighbours(emb),
                                  helper_emb=self.embeddings2.get(rid), clf=self._classifier(),
-                                 third_emb=self.embeddings3.get(rid))
+                                 third_emb=self.embeddings3.get(rid), heard=True)
             with self.lock:
                 old = rec.get("suggestion") or {}
                 sug["name_words"] = name_words(text)
@@ -658,7 +695,7 @@ class Project:
                 if rec.get("missing") or not rv.get("verdict"):
                     continue
                 score = rv.get("ai_score")
-                w.writerow([Path(rec["path"]).name, rv.get("heard", ""), rv.get("ai_catid", ""),
+                w.writerow([Path(rec["path"]).name, _csv_safe(rv.get("heard", "")), rv.get("ai_catid", ""),
                             f"{round(score * 100)}%" if score is not None else "",
                             rv.get("final_catid", ""), label.get(rv["verdict"], "")])
         return buf.getvalue()
@@ -673,38 +710,49 @@ class Project:
                     for k in DEFAULT_KEYS:
                         if self.defaults.get(k) and not rec["fields"].get(k):
                             rec["fields"][k] = self.defaults[k]
-                            rec["dirty"] = True
+                            # rascunhos por rever não contam como editados: senão deixavam de
+                            # ser atualizados ao reanalisar
+                            rec["dirty"] = rec.get("dirty") or rec["status"] not in ("novo", "sugerido")
             self.save()
 
     # --- gravar nos ficheiros ----------------------------------------------
     def write(self, ids: list[str], rename: bool, backup: bool) -> dict:
         ok, errors = 0, []
         with self.lock:
+            if self.job["running"] or self.writing:
+                return {"ok": 0, "errors": [{"path": "", "error": "Já há uma análise ou gravação a decorrer"}]}
+            self.writing = True
             numbering = self._series_numbers(ids) if rename else {}
-            written: list[tuple[dict, dict]] = []
+        written: list[tuple[dict, dict]] = []
+        try:
             for rid in ids:
-                rec = self.records.get(rid)
-                if rec is None or rec.get("missing"):
-                    continue
-                p = self.abspath(rec)
-                fields = dict(rec["fields"])
+                with self.lock:
+                    rec = self.records.get(rid)
+                    if rec is None or rec.get("missing"):
+                        continue
+                    p = self.abspath(rec)
+                    fields = dict(rec["fields"])
+                    want_backup = backup and not rec.get("backup")
                 cat = ucs.lookup(fields.get("catid", ""))
                 if cat:
                     fields["category_full"] = cat.full
                 try:
                     # só se guarda o original verdadeiro (a primeira vez que a app mexe no ficheiro)
-                    bdir = None
-                    if backup and not rec.get("backup"):
-                        bdir = self.state_dir / "backup" / Path(rec["path"]).parent
-                    metadata.write_metadata(p, fields, backup_dir=bdir)
-                    if bdir is not None:
-                        rec["backup"] = (bdir / p.name).relative_to(self.root).as_posix()
-                    rec.update(status="gravado", dirty=False, error=None)
+                    bdir = self.state_dir / "backup" / Path(rec["path"]).parent if want_backup else None
+                    # fora do lock: em bibliotecas de vários GB a interface não pode ficar parada
+                    copy = metadata.write_metadata(p, fields, backup_dir=bdir)
+                    with self.lock:
+                        if copy is not None:
+                            rec["backup"] = copy.relative_to(self.root).as_posix()
+                        rec.update(status="gravado", dirty=False, error=None)
                     written.append((rec, fields))
                     ok += 1
                 except Exception as e:
                     rec["error"] = f"Erro ao gravar: {e}"
                     errors.append({"path": rec["path"], "error": str(e)})
+        finally:
+            self.writing = False
+        with self.lock:
             if rename:
                 errors += self._rename_all(written, numbering)
             for rec, _ in written:
@@ -809,7 +857,7 @@ class Project:
                         v = getter(rec)
                     else:
                         v = rec["fields"].get(getter, "")
-                    row.append("" if v is None else v)
+                    row.append("" if v is None else _csv_safe(v))
                 w.writerow(row)
         return buf.getvalue()
 
@@ -818,6 +866,11 @@ class Project:
             return {"root": str(self.root), "defaults": self.defaults,
                     "records": [r for r in self.records.values() if not r.get("missing")],
                     "job": dict(self.job), "warning": self.warning}
+
+
+def _csv_safe(v):
+    """Texto vindo dos ficheiros não pode ser executado como fórmula ao abrir o CSV no Excel."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@") else v
 
 
 def _title(words: list[str], limit: int) -> str:
@@ -894,7 +947,7 @@ def _is_mixed(segments: list[dict]) -> bool:
     return sum(1 for d in by_family.values() if d / total >= 0.25) >= 2
 
 
-def _draft_description(words: list[str], attrs: dict, tech: dict, segments: list[dict] = ()) -> str:
+def _draft_description(words: list[str], attrs: dict, tech: dict) -> str:
     """Rascunho curto em inglês: o quê (fonte, ação, material), como soa e a estrutura.
     O designer completa o contexto (onde, como foi gravado)."""
     subject = " ".join(words[:6])
@@ -926,8 +979,6 @@ def _draft_description(words: list[str], attrs: dict, tech: dict, segments: list
     if kind in ("one-shot", "evento") and tail:
         structure = ", ".join(x for x in (structure, "long tail" if tail >= 1.5 else
                                           "short tail" if tail < 0.4 else "") if x)
-    if _is_mixed(segments):
-        structure = ", ".join(x for x in (structure, "several different events") if x)
     parts = [", ".join(first), " and ".join(qualities), structure]
     sentences = [x[:1].upper() + x[1:] for x in parts if x]
     return ". ".join(sentences) + "." if sentences else ""

@@ -11,6 +11,7 @@ ficheiro temporário que depois substitui o original de forma atómica.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import struct
 import unicodedata
@@ -41,6 +42,8 @@ IXML_FIELDS = {
 }
 
 BEXT_FIXED = 602  # tamanho da parte fixa do chunk bext (v1/v2)
+# Gravadores (Sound Devices, Zoom…) escrevem no bext linhas como "sSPEED=048.000" ou "zTRK1=Mix"
+_RECORDER_TEXT = re.compile(r"(^|[\r\n])[A-Za-z_][A-Za-z0-9_]{1,15}=")
 
 
 class MetadataError(Exception):
@@ -116,7 +119,7 @@ def read_metadata(path: str | Path) -> dict:
     info = out["info"]
     if not fields.get("description"):
         desc = (out["bext"] or {}).get("description") or info.get("ICMT", "")
-        if desc:
+        if desc and not _RECORDER_TEXT.search(desc):
             fields["description"] = desc
     if not fields.get("keywords") and info.get("IKEY"):
         fields["keywords"] = info["IKEY"]
@@ -206,6 +209,8 @@ def _build_ixml(old: bytes | None, fields: dict) -> bytes:
     if user is None:
         user = ET.SubElement(root, "USER")
     for key, tag in IXML_FIELDS.items():
+        if key not in fields:     # campo que a app não edita: fica como estava no ficheiro
+            continue
         val = (fields.get(key) or "").strip()
         el = user.find(tag)
         if val:
@@ -267,9 +272,19 @@ def _copy_chunk(f, out, ch: Chunk) -> None:
         out.write(b"\x00")
 
 
-def write_metadata(path: str | Path, fields: dict, backup_dir: Path | None = None) -> None:
-    """Grava os campos no WAV. Se backup_dir for dado, guarda lá uma cópia do original."""
+def _free_name(dest: Path) -> Path:
+    n, free = 2, dest
+    while free.exists():
+        free = dest.with_name(f"{dest.stem} ({n}){dest.suffix}")
+        n += 1
+    return free
+
+
+def write_metadata(path: str | Path, fields: dict, backup_dir: Path | None = None) -> Path | None:
+    """Grava os campos no WAV. Se backup_dir for dado, guarda lá uma cópia do original e
+    devolve o caminho dessa cópia."""
     path = Path(path)
+    backup = None
     tmp = path.with_name(path.name + ".sfxtagger-tmp")
     with open(path, "rb") as f:
         chunks = _scan_chunks(f)
@@ -306,7 +321,7 @@ def write_metadata(path: str | Path, fields: dict, backup_dir: Path | None = Non
             raise
     if backup_dir is not None:
         backup_dir.mkdir(parents=True, exist_ok=True)
-        dest = backup_dir / path.name
-        if not dest.exists():  # guarda só o original mais antigo
-            shutil.copy2(path, dest)
+        backup = _free_name(backup_dir / path.name)   # nunca escreve por cima de outra cópia
+        shutil.copy2(path, backup)
     os.replace(tmp, path)
+    return backup

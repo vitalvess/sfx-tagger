@@ -23,9 +23,11 @@ def _open_when_ready(port: int, url: str, timeout: float = 1800.0) -> None:
     import time
     import urllib.request
     t0 = time.time()
+    # sem proxy: numa rede com proxy configurado, o pedido a 127.0.0.1 falhava sempre
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     while time.time() - t0 < timeout:
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=2):
+            with direct.open(f"http://127.0.0.1:{port}/api/status", timeout=2):
                 print(f"  Servidor pronto em {time.time() - t0:.0f} s; a abrir o browser.", flush=True)
                 webbrowser.open(url)
                 return
