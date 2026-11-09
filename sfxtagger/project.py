@@ -456,6 +456,7 @@ class Project:
                 self.job.update(running=False, phase="erro",
                                 message="Esta pasta não tem sons classificados: o teste precisa do CatID nos ficheiros ou de um respostas.csv.")
                 return
+            last_save, save_cost = _now(), 0.0
             for rid in truths:   # primeiro ouve tudo, para o limiar do classificador ser estável
                 if self._stop.is_set():
                     self.save()
@@ -468,6 +469,11 @@ class Project:
                     traceback.print_exc()
                     self.job["errors"] += 1
                 self.job["done"] += 1
+                if _now() - last_save > max(30.0, 30 * save_cost):   # testes em massa demoram horas
+                    t0 = _now()
+                    self.save()
+                    last_save = _now()
+                    save_cost = last_save - t0
             self.job["phase"] = "a comparar com as respostas"
             kb = get_knowledge()
             clf = self._classifier(fresh=True)
