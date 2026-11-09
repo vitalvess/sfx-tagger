@@ -20,6 +20,7 @@
       <button data-an="new">Ficheiros ainda não analisados</button>
       <button data-an="sel">Só os selecionados</button>
       <button data-an="all">Reanalisar tudo</button>
+      <button data-an="test">Testar a IA com sons já classificados</button>
     </div>
   </div>
   <button id="btnUpload" title="Escolher ficheiros de som do computador">Carregar sons</button>
@@ -215,6 +216,19 @@
       <div id="kbStats" class="kb-stats"></div>
     </details>
     <div class="dialog-foot">
+      <div class="spacer"></div>
+      <button data-close>Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Testar a IA -->
+<div class="modal hidden" id="evalModal">
+  <div class="dialog wide">
+    <h2>Teste da IA</h2>
+    <div id="evalBody"></div>
+    <div class="dialog-foot">
+      <a class="btn" id="evalCsv" href="/api/evaluation.csv">Detalhe som a som (CSV)</a>
       <div class="spacer"></div>
       <button data-close>Fechar</button>
     </div>

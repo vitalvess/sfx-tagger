@@ -15,9 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, classifier, metadata, precisao, ucs
+from . import audio, avaliacao, classifier, metadata, precisao, ucs
 from .ai import GROUP_BETA, get_tagger, name_words
-from .knowledge import get_knowledge
+from .knowledge import example_id, get_knowledge
 
 STATE_DIR = ".sfxtagger"
 AUDIO_EXT = {".wav"}
@@ -52,6 +52,7 @@ class Project:
         self.waveforms: dict[str, np.ndarray] = {}     # formas de onda (para o ecrã)
         self._arrays_dirty = False   # embeddings/formas de onda mudaram desde a última gravação
         self.writing = False         # a gravar nos WAV (não pode começar uma análise)
+        self.evaluation: dict | None = None   # último "Testar a IA" (com o detalhe por som)
         self.warning = ""
         self.job = {"running": False, "phase": "", "done": 0, "total": 0,
                     "current": "", "errors": 0, "message": ""}
@@ -351,6 +352,89 @@ class Project:
             self._redraft(rec)
             if rec["status"] == "novo":
                 rec["status"] = "sugerido"
+
+    # --- testar a IA com sons já classificados --------------------------------------
+    def start_evaluation(self) -> bool:
+        with self.lock:
+            if self.job["running"] or self.writing:
+                return False
+            todo = [rid for rid, r in self.records.items() if not r.get("missing")]
+            self.job = {"running": True, "phase": "a testar a IA", "done": 0, "total": len(todo),
+                        "current": "", "errors": 0, "message": "", "kind": "teste"}
+        threading.Thread(target=self._run_evaluation, args=(todo,), daemon=True).start()
+        return True
+
+    def _embeddings_for_test(self, rec: dict, tagger) -> None:
+        """Ouve o som, se ainda não tiver sido ouvido. Não mexe nos campos do som."""
+        rid = rec["id"]
+        third = precisao.active()
+        if rid in self.embeddings and rid in self.embeddings2 and (rid in self.embeddings3 or not third):
+            return
+        windows = audio.best_windows(audio.load(self.abspath(rec)).mono)
+        emb, emb2 = tagger.embed_audio(windows), tagger.embed_audio_helper(windows)
+        emb3 = precisao.embed(windows) if third else None
+        with self.lock:
+            self.embeddings[rid] = emb
+            self.embeddings2[rid] = emb2
+            if emb3 is not None:
+                self.embeddings3[rid] = emb3
+            self._arrays_dirty = True
+
+    def _run_evaluation(self, todo: list[str]) -> None:
+        try:
+            tagger = get_tagger()
+            tagger.ensure_loaded()
+            precisao.wait_if_starting()
+            answers = avaliacao.load_answers(self.root)
+            truths, no_label = {}, 0
+            for rid in todo:
+                rec = self.records[rid]
+                truth = avaliacao.truth_of(self.abspath(rec), answers)
+                if truth:
+                    truths[rid] = truth
+                else:
+                    no_label += 1
+            self.job["total"] = len(truths)
+            if not truths:
+                self.evaluation = None
+                self.job.update(running=False, phase="erro",
+                                message="Esta pasta não tem sons classificados: o teste precisa do CatID nos ficheiros ou de um respostas.csv.")
+                return
+            for rid in truths:   # primeiro ouve tudo, para o limiar do classificador ser estável
+                self.job["current"] = self.records[rid]["path"]
+                try:
+                    self._embeddings_for_test(self.records[rid], tagger)
+                except Exception:  # noqa: BLE001 — um ficheiro mau não estraga o teste
+                    traceback.print_exc()
+                    self.job["errors"] += 1
+                self.job["done"] += 1
+            self.job["phase"] = "a comparar com as respostas"
+            kb = get_knowledge()
+            clf = self._classifier(fresh=True)
+            rows, known = [], 0
+            for rid, truth in truths.items():
+                emb = self.embeddings.get(rid)
+                if emb is None:
+                    continue
+                if example_id(emb) in kb.meta:   # a IA já aprendeu este som: não seria um teste justo
+                    known += 1
+                    continue
+                sug = tagger.suggest(emb, [], [], memory=kb.neighbours(emb), helper_emb=self.embeddings2.get(rid),
+                                     clf=clf, third_emb=self.embeddings3.get(rid))
+                rows.append({"file": self.records[rid]["path"], "truth": truth, "ai": sug["categories"][0]["catid"],
+                             "confidence": sug["confidence"]["value"], "level": sug["confidence"]["level"],
+                             **avaliacao.score(sug["categories"], truth)})
+            summary = avaliacao.summarize(rows, no_label, known, self.job["errors"])
+            models = 3 if precisao.active() else 2
+            summary.update(folder=self.root.name, examples=len(kb.meta), models=models)
+            self.evaluation = {"summary": summary, "rows": rows}
+            if rows:
+                avaliacao.remember(summary, self.root.name, len(kb.meta), models)
+            self.save()
+            self.job.update(running=False, phase="concluído", current="")
+        except Exception as e:  # noqa: BLE001
+            traceback.print_exc()
+            self.job.update(running=False, phase="erro", current="", message=f"O teste terminou com um erro: {e}")
 
     def _redraft(self, rec: dict) -> None:
         """Rascunhos só da IA (ninguém mexeu, nada vinha no ficheiro) refazem-se."""

@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, paths, precisao, setup_ai, ucs
+from . import __version__, avaliacao, paths, precisao, setup_ai, ucs
 from .ai import get_tagger
 from .knowledge import get_knowledge
 from .project import Project
@@ -494,6 +494,28 @@ def analyze(req: AnalyzeReq):
     if not project().start_analysis(req.ids, req.force):
         raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
     return {"started": True}
+
+
+@app.post("/api/evaluate")
+def evaluate():
+    if not project().start_evaluation():
+        raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
+    return {"started": True}
+
+
+@app.get("/api/evaluation")
+def evaluation():
+    ev = project().evaluation
+    return {"summary": ev["summary"] if ev else None, "history": avaliacao.history()}
+
+
+@app.get("/api/evaluation.csv")
+def evaluation_csv():
+    ev = project().evaluation
+    if not ev:
+        raise HTTPException(404, "Ainda não há nenhum teste")
+    return Response("\ufeff" + avaliacao.to_csv(ev["rows"]), media_type="text/csv; charset=utf-8",
+                    headers=_attachment(f"teste_IA_{project().root.name}.csv"))
 
 
 @app.get("/api/job")
