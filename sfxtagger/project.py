@@ -53,6 +53,8 @@ class Project:
         self._arrays_dirty = False   # embeddings/formas de onda mudaram desde a última gravação
         self.writing = False         # a gravar nos WAV (não pode começar uma análise)
         self.evaluation: dict | None = None   # último "Testar a IA" (com o detalhe por som)
+        self.ignored: set[str] = set()        # sons tirados da lista (o ficheiro continua na pasta)
+        self._stop = threading.Event()        # pedido para parar a análise ou o teste
         self.warning = ""
         self.job = {"running": False, "phase": "", "done": 0, "total": 0,
                     "current": "", "errors": 0, "message": ""}
@@ -85,6 +87,7 @@ class Project:
                 data = json.loads(self.state_file.read_text(encoding="utf-8"))
                 self.records = data.get("records", {})
                 self.defaults.update(data.get("defaults", {}))
+                self.ignored = set(data.get("ignored", []))
             except (ValueError, OSError):
                 # ficheiro danificado (ex.: falha de energia): guarda-o à parte e recomeça
                 bad = self.state_file.with_name(f"projeto.danificado-{int(_now())}.json")
@@ -136,8 +139,8 @@ class Project:
                 except Exception:
                     pass
             tmp = self.state_file.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"version": 2, "defaults": self.defaults,
-                                       "records": self.records}, ensure_ascii=False,
+            tmp.write_text(json.dumps({"version": 2, "defaults": self.defaults, "records": self.records,
+                                       "ignored": sorted(self.ignored)}, ensure_ascii=False,
                                       separators=(",", ":")), encoding="utf-8")
             os.replace(tmp, self.state_file)
             # os ficheiros grandes só são regravados quando mudam (não a cada edição)
@@ -148,6 +151,8 @@ class Project:
                         tmp = target.with_name(target.stem + ".tmp.npz")
                         np.savez_compressed(tmp, **data)
                         os.replace(tmp, target)
+                    else:
+                        target.unlink(missing_ok=True)   # todos os sons foram removidos
                 self._arrays_dirty = False
 
     # --- ficheiros ---------------------------------------------------------
@@ -163,7 +168,9 @@ class Project:
                 if fn.startswith(".") or Path(fn).suffix.lower() not in AUDIO_EXT:
                     continue
                 p = Path(dirpath) / fn
-                found[p.relative_to(self.root).as_posix()] = p
+                rel = p.relative_to(self.root).as_posix()
+                if rel not in self.ignored:
+                    found[rel] = p
         with self.lock:
             by_path = {r["path"]: rid for rid, r in self.records.items()}
             added = removed = 0
@@ -258,6 +265,47 @@ class Project:
         return [{"id": ids[i], "sim": round(float(sims[i]), 3)} for i in order
                 if sims[i] >= min_sim]
 
+    # --- tirar sons da lista ---------------------------------------------------------
+    def remove(self, ids: list[str], delete_files: bool) -> int | None:
+        """Tira os sons da lista. delete_files só para lotes carregados pelo browser, que são
+        cópias da app; numa pasta da pessoa o ficheiro nunca é apagado. None = há trabalho a decorrer."""
+        with self.lock:
+            if self.job["running"] or self.writing:
+                return None
+            n = 0
+            for rid in ids:
+                rec = self.records.pop(rid, None)
+                if rec is None:
+                    continue
+                n += 1
+                for store in (self.embeddings, self.embeddings2, self.embeddings3, self.waveforms):
+                    store.pop(rid, None)
+                (self.state_dir / "preview" / f"{rid}.wav").unlink(missing_ok=True)
+                if delete_files:
+                    self.abspath(rec).unlink(missing_ok=True)
+                else:
+                    self.ignored.add(rec["path"])
+            if n:
+                self._arrays_dirty = True
+                self._compute_groups()
+                self.save()
+            return n
+
+    def restore_ignored(self) -> int:
+        with self.lock:
+            n = len(self.ignored)
+            self.ignored.clear()
+        self.scan()
+        return n
+
+    def stop_job(self) -> bool:
+        """Pede para parar: o som que está a ser ouvido termina e o trabalho feito fica guardado."""
+        if not self.job["running"]:
+            return False
+        self._stop.set()
+        self.job["phase"] = "a parar"
+        return True
+
     # --- análise -----------------------------------------------------------
     def start_analysis(self, ids: list[str] | None, force: bool) -> bool:
         with self.lock:
@@ -270,6 +318,7 @@ class Project:
                         if not r.get("missing") and (force or r.get("suggestion") is None)]
             self.job = {"running": True, "phase": "a preparar", "done": 0, "total": len(todo),
                         "current": "", "errors": 0, "message": ""}
+            self._stop.clear()
         threading.Thread(target=self._run_analysis, args=(todo,), daemon=True).start()
         return True
 
@@ -287,7 +336,10 @@ class Project:
         self.job["phase"] = "a analisar"
         last_save = _now()
         save_cost = 0.0
+        processed: list[str] = []
         for rid in todo:
+            if self._stop.is_set():
+                break
             rec = self.records.get(rid)
             if rec is None:
                 continue
@@ -299,6 +351,7 @@ class Project:
                 rec["error"] = f"Erro na análise: {e}"
                 self.job["errors"] += 1
             self.job["done"] += 1
+            processed.append(rid)
             # em bibliotecas grandes guardar demora: nunca mais de ~3% do tempo total
             if _now() - last_save > max(10.0, 30 * save_cost):
                 t0 = _now()
@@ -308,10 +361,12 @@ class Project:
         try:
             with self.lock:
                 self._compute_groups()
-            self.job["phase"] = "a comparar takes da mesma série"
-            self._apply_group_consensus(tagger, todo)
+            stopped = self._stop.is_set()
+            if not stopped:
+                self.job["phase"] = "a comparar takes da mesma série"
+            self._apply_group_consensus(tagger, processed)
             self.save()
-            self.job.update(running=False, phase="concluído", current="")
+            self.job.update(running=False, phase="parado" if stopped else "concluído", current="")
         except Exception as e:  # noqa: BLE001 — sem isto a app ficava presa em "a analisar"
             traceback.print_exc()
             self.job.update(running=False, phase="erro", current="", message=f"A análise terminou com um erro: {e}")
@@ -361,6 +416,7 @@ class Project:
             todo = [rid for rid, r in self.records.items() if not r.get("missing")]
             self.job = {"running": True, "phase": "a testar a IA", "done": 0, "total": len(todo),
                         "current": "", "errors": 0, "message": "", "kind": "teste"}
+            self._stop.clear()
         threading.Thread(target=self._run_evaluation, args=(todo,), daemon=True).start()
         return True
 
@@ -401,6 +457,10 @@ class Project:
                                 message="Esta pasta não tem sons classificados: o teste precisa do CatID nos ficheiros ou de um respostas.csv.")
                 return
             for rid in truths:   # primeiro ouve tudo, para o limiar do classificador ser estável
+                if self._stop.is_set():
+                    self.save()
+                    self.job.update(running=False, phase="parado", current="")
+                    return
                 self.job["current"] = self.records[rid]["path"]
                 try:
                     self._embeddings_for_test(self.records[rid], tagger)
@@ -949,7 +1009,7 @@ class Project:
         with self.lock:
             return {"root": str(self.root), "defaults": self.defaults,
                     "records": [r for r in self.records.values() if not r.get("missing")],
-                    "job": dict(self.job), "warning": self.warning}
+                    "job": dict(self.job), "warning": self.warning, "ignored": len(self.ignored)}
 
 
 def _csv_safe(v):

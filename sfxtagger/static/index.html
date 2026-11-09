@@ -81,6 +81,7 @@
       <span id="selCount">0 selecionados</span>
       <button id="btnBulk" class="small" disabled>Editar selecionados…</button>
       <button id="btnApproveSel" class="small" disabled>Aprovar selecionados</button>
+      <button id="btnRemoveSel" class="small" title="Tira os sons selecionados da lista">Remover</button>
     </div>
     <div class="table-wrap">
       <table class="files">
@@ -265,7 +266,9 @@
   <div id="jobBox" class="job hidden">
     <div class="job-text" id="jobText"></div>
     <div class="bar"><div id="jobBar"></div></div>
+    <button id="btnStop" title="Para depois do som atual; o trabalho feito fica guardado">Parar</button>
   </div>
+  <button id="btnRestore" class="hidden" title="Volta a pôr na lista os sons que tiraste"></button>
   <div class="spacer"></div>
   <span class="status-keys"><kbd>espaço</kbd> ouvir &nbsp; <kbd>1-5</kbd> categoria &nbsp; <kbd id="keyMod">Ctrl</kbd><kbd>+Enter</kbd> confirmar</span>
 </footer>

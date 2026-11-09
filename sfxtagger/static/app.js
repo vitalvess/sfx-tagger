@@ -162,6 +162,7 @@ function loadProject(p) {
   S.isUpload = !!p.is_upload;
   ["#btnAnalyze", "#btnWrite", "#btnDefaults", "#btnExport"].forEach((s) => $(s).disabled = false);
   if (p.job && p.job.running) startPolling();
+  updateIgnored(p.ignored);
   if (p.warning) toast(p.warning, true);
   if (!S.active && S.view.length) select(S.view[0]);
 }
@@ -762,7 +763,7 @@ function startPolling() {
     const j = res.job;
     const pct = j.total ? (j.done / j.total) * 100 : 0;
     $("#jobBar").style.width = pct + "%";
-    $("#jobText").textContent = j.done === 0 && j.phase !== "a analisar"
+    $("#jobText").textContent = j.phase === "a parar" ? "A parar depois do som atual…" : j.done === 0 && j.phase !== "a analisar"
       ? (res.model !== "pronto" ? res.model : j.phase)
       : `${j.done}/${j.total} · ${basename(j.current || "")}`;
     // atualiza a lista à medida que avança, mas no máximo a cada 3 s (bibliotecas grandes)
@@ -783,6 +784,7 @@ function startPolling() {
       const typing = document.activeElement?.matches("#detail input, #detail textarea");
       if (S.active && !typing) select(S.active, { scroll: false });
       if (j.phase === "erro") toast(j.message, true);
+      else if (j.phase === "parado") toast(`Parado: ${j.done} de ${j.total} sons feitos. O que já foi feito ficou guardado.`);
       else if (j.kind === "teste") showEvaluation();
       else toast(`Análise concluída: ${j.done} sons` + (j.errors ? `, ${j.errors} com erro` : "") + ".");
     }
@@ -859,7 +861,10 @@ async function uploadFiles(fileList) {
     $("#jobBox").classList.remove("hidden");
     let ok = 0;
     const failed = [];
+    S.uploading = true;
+    S.stopUpload = false;
     for (const [i, f] of files.entries()) {
+      if (S.stopUpload) break;
       $("#jobText").textContent = `A carregar ${i + 1}/${files.length} · ${f.name}`;
       $("#jobBar").style.width = (i / files.length) * 100 + "%";
       const r = await fetch("/api/upload/file?name=" + encodeURIComponent(f.name), { method: "PUT", body: f });
@@ -870,16 +875,68 @@ async function uploadFiles(fileList) {
         failed.push(msg);
       }
     }
+    S.uploading = false;
     $("#jobBox").classList.add("hidden");
     loadProject(await api("/api/rescan", { method: "POST" }));
+    if (S.stopUpload) return toast(`Parado: ${ok} de ${files.length} sons carregados. Usa Analisar para os analisar.`);
     if (failed.length) toast(`${failed.length} ficheiro(s) falharam: ${failed[0]}`, true);
     else toast(`${ok} sons carregados${ignored ? ` (${ignored} ficheiros ignorados)` : ""}. A analisar…`);
     if (ok) runAnalysis(null, false);
   } catch (e) {
+    S.uploading = false;
     $("#jobBox").classList.add("hidden");
     toast(e.message, true);
   }
 }
+
+$("#btnStop").onclick = async () => {
+  $("#jobText").textContent = "A parar depois do som atual…";
+  if (S.uploading) { S.stopUpload = true; return; }
+  try { await api("/api/analyze/stop", { method: "POST" }); } catch (e) { toast(e.message, true); }
+};
+
+// ---------------------------------------------------------------- tirar sons da lista
+function updateIgnored(n) {
+  $("#btnRestore").classList.toggle("hidden", !n);
+  $("#btnRestore").textContent = `${n} fora da lista: repor`;
+}
+
+function afterRemoval(res) {
+  S.selected.clear();
+  setRecords(res.records);
+  updateIgnored(res.ignored);
+  if (S.active && !S.byId.has(S.active)) {
+    S.active = null;
+    S.activeFull = null;
+    player.pause();
+    player.removeAttribute("src");
+    renderDetail();
+    if (S.view.length) select(S.view[0], { scroll: false });
+  }
+}
+
+$("#btnRemoveSel").onclick = async () => {
+  const n = S.selected.size;
+  const som = n === 1 ? "este som" : `estes ${n} sons`;
+  const msg = S.isUpload
+    ? `Apagar ${som} do lote? As cópias feitas pela app são apagadas do disco, incluindo metadados já gravados nelas e não exportados. Os teus ficheiros originais não são tocados e o que a IA aprendeu mantém-se.`
+    : `Tirar ${som} da lista? Os ficheiros continuam na pasta e o que a IA aprendeu mantém-se.`;
+  if (!confirm(msg)) return;
+  await flushSave();
+  try {
+    const res = await api("/api/remove", { method: "POST", body: { ids: [...S.selected] } });
+    afterRemoval(res);
+    toast(`${res.removed} ${res.removed === 1 ? "som removido" : "sons removidos"} da lista.`);
+  } catch (e) { toast(e.message, true); }
+};
+
+$("#btnRestore").onclick = async () => {
+  try {
+    const res = await api("/api/restore", { method: "POST" });
+    afterRemoval(res);
+    toast(`${res.restored} sons de volta à lista. Usa Analisar para os analisar.`);
+  } catch (e) { toast(e.message, true); }
+};
 
 $("#btnUpload").onclick = () => $("#fileInput").click();
 $("#btnUpload2").onclick = () => $("#fileInput").click();
