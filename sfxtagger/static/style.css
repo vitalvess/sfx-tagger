@@ -371,7 +371,7 @@ button.mic.busy { pointer-events: none; }
   .toolbar { height: auto; flex-wrap: wrap; }
   .toolbar .filters { order: 3; width: 100%; overflow-x: auto; border-top: 1px solid var(--line); }
   .files .c-conf, .files th:nth-child(7), .files td:nth-child(7) { display: none; }
-  .empty-foot { grid-template-columns: 1fr; gap: 16px; padding-left: 16px; padding-right: 16px; }
+  .empty-foot { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-left: 16px; padding-right: 16px; }
   .dropzone { padding-left: 28px; }
   .status-keys { display: none; }
 }
