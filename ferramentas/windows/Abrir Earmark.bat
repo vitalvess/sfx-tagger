@@ -1,8 +1,8 @@
 @echo off
 setlocal EnableExtensions
-title SFX Tagger
+title Earmark
 rem ------------------------------------------------------------------------
-rem  SFX Tagger - arrancador para Windows.
+rem  Earmark - arrancador para Windows.
 rem  Na primeira vez instala tudo sozinho (Python, bibliotecas e IA) e cria
 rem  um atalho no Ambiente de Trabalho. Tudo fica em %LOCALAPPDATA%\SFXTagger.
 rem ------------------------------------------------------------------------
@@ -33,19 +33,22 @@ if not errorlevel 1 (
 rem Copia a app para a pasta do utilizador (o zip pode ser apagado depois).
 if /i not "%SRC%"=="%SUP%\" (
   robocopy "%SRC%app" "%SUP%\app" /MIR /NFL /NDL /NJH /NJS /NP >nul
-  copy /y "%SELF%" "%SUP%\Abrir SFX Tagger.bat" >nul
-  if exist "%SRC%Desinstalar SFX Tagger.bat" copy /y "%SRC%Desinstalar SFX Tagger.bat" "%SUP%\" >nul
+  copy /y "%SELF%" "%SUP%\Abrir Earmark.bat" >nul
+  if exist "%SRC%Desinstalar Earmark.bat" copy /y "%SRC%Desinstalar Earmark.bat" "%SUP%\" >nul
+  rem atualizacao de uma versao com o nome antigo (SFX Tagger): troca os ficheiros e o atalho
+  del /q "%SUP%\Abrir SFX Tagger.bat" "%SUP%\Desinstalar SFX Tagger.bat" 2>nul
+  if not defined SFXTAGGER_NO_SHORTCUT if exist "%STAMP%" call :atalho
 )
 
 if exist "%STAMP%" goto :abrir
 
 echo.
 echo   ================================================
-echo     SFX Tagger - a preparar, so na primeira vez
+echo     Earmark - a preparar, so na primeira vez
 echo   ================================================
 echo.
 echo   Isto demora 1 a 2 minutos. NAO feches esta janela.
-echo   No fim, o SFX Tagger abre sozinho no browser.
+echo   No fim, o Earmark abre sozinho no browser.
 echo.
 echo ==== %date% %time% instalacao ==== >>"%LOG%"
 
@@ -63,8 +66,8 @@ echo   [3/3] A instalar as bibliotecas...
 echo ok>"%STAMP%"
 if not defined SFXTAGGER_NO_SHORTCUT call :atalho
 echo.
-echo   Pronto! A abrir o SFX Tagger no browser...
-echo   Da proxima vez usa o atalho "SFX Tagger" no Ambiente de Trabalho.
+echo   Pronto! A abrir o Earmark no browser...
+echo   Da proxima vez usa o atalho "Earmark" no Ambiente de Trabalho.
 ping -n 5 127.0.0.1 >nul
 
 :abrir
@@ -77,12 +80,12 @@ start "" "%VENV%\Scripts\pythonw.exe" "%SUP%\app\run.py" --port %SFXTAGGER_PORT%
 exit /b 0
 
 :atalho
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\SFX Tagger.lnk'); $s.TargetPath='%SUP%\Abrir SFX Tagger.bat'; $s.WorkingDirectory='%SUP%'; $s.IconLocation='%SUP%\app\icone.ico'; $s.WindowStyle=7; $s.Description='SFX Tagger - metadados de efeitos sonoros'; $s.Save()" >>"%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -Force -ErrorAction SilentlyContinue ([Environment]::GetFolderPath('Desktop') + '\SFX Tagger.lnk'); $s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Earmark.lnk'); $s.TargetPath='%SUP%\Abrir Earmark.bat'; $s.WorkingDirectory='%SUP%'; $s.IconLocation='%SUP%\app\icone.ico'; $s.WindowStyle=7; $s.Description='Earmark - metadados de efeitos sonoros'; $s.Save()" >>"%LOG%" 2>&1
 exit /b 0
 
 :erro
 echo.
-echo   Nao foi possivel preparar o SFX Tagger.
+echo   Nao foi possivel preparar o Earmark.
 echo   Confirma que estas ligado a internet e volta a abrir este ficheiro.
 echo   Se continuar a falhar, envia este ficheiro a quem te deu a app:
 echo   %LOG%

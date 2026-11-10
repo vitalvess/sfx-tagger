@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title Desinstalar SFX Tagger
+title Desinstalar Earmark
 if not defined SFXTAGGER_HOME set "SFXTAGGER_HOME=%LOCALAPPDATA%\SFXTagger"
 if not defined SFXTAGGER_PORT set "SFXTAGGER_PORT=8765"
 set "TMPCOPY=%TEMP%\sfxtagger-desinstalar.bat"
@@ -13,7 +13,7 @@ if /i "%~dp0"=="%SFXTAGGER_HOME%\" (
 )
 
 echo.
-echo   Isto apaga o SFX Tagger deste computador: a app, a IA e o que ela
+echo   Isto apaga o Earmark deste computador: a app, a IA e o que ela
 echo   aprendeu com os teus sons. Se quiseres guardar o que a IA aprendeu,
 echo   cancela e usa primeiro "Treinar a IA" - "Exportar" dentro da app.
 echo.
@@ -25,11 +25,11 @@ if errorlevel 2 goto :fim
 rem fecha a app se estiver aberta
 powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Method Post -TimeoutSec 3 'http://127.0.0.1:%SFXTAGGER_PORT%/api/quit' | Out-Null } catch { }" >nul 2>&1
 ping -n 3 127.0.0.1 >nul
-powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue ([Environment]::GetFolderPath('Desktop') + '\SFX Tagger.lnk')" >nul 2>&1
+powershell -NoProfile -Command "foreach ($n in 'Earmark.lnk','SFX Tagger.lnk') { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path ([Environment]::GetFolderPath('Desktop')) $n) }" >nul 2>&1
 cd /d "%TEMP%"
 rmdir /s /q "%SFXTAGGER_HOME%" 2>nul
 echo.
-echo   SFX Tagger desinstalado.
+echo   Earmark desinstalado.
 ping -n 5 127.0.0.1 >nul
 
 :fim

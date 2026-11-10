@@ -185,7 +185,7 @@ def _build_bext(old: bytes | None, fields: dict) -> bytes:
         buf = bytearray(old)
     else:
         buf = bytearray(BEXT_FIXED)
-        buf[256:288] = _fit("SFX Tagger", 32)
+        buf[256:288] = _fit("Earmark", 32)
         buf[320:330] = _fit(now.strftime("%Y-%m-%d"), 10)
         buf[330:338] = _fit(now.strftime("%H:%M:%S"), 8)
         struct.pack_into("<H", buf, 346, 1)  # versão 1
@@ -235,7 +235,7 @@ def _build_info(old: bytes | None, fields: dict) -> bytes:
         b"IGNR": fields.get("category_full", ""),
         b"IART": fields.get("designer", ""),
         b"IPRD": fields.get("library", ""),
-        b"ISFT": "SFX Tagger",
+        b"ISFT": "Earmark",
     }
     for k, v in mapping.items():
         if v:

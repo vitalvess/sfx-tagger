@@ -1,5 +1,5 @@
 #!/bin/bash
-# SFX Tagger — arranque da app de Mac.
+# Earmark — arranque da app de Mac.
 # Na primeira vez instala tudo sozinho (Python, bibliotecas e IA) — sem Terminal.
 # Tudo fica em ~/Library/Application Support/SFXTagger (apagar essa pasta desinstala).
 
@@ -40,13 +40,13 @@ export UV_CACHE_DIR="$SUP/uv-cache"
 export HF_HOME="$SUP/modelo"
 
 aviso() {
-  osascript -e "display notification \"$1\" with title \"SFX Tagger\"" >/dev/null 2>&1
+  osascript -e "display notification \"$1\" with title \"Earmark\"" >/dev/null 2>&1
 }
 
 erro() {
   echo "ERRO: $1"
   local r
-  r=$(osascript -e "display dialog \"$1\n\nSe o problema continuar, envia o ficheiro de registo a quem te deu a app.\" with title \"SFX Tagger\" buttons {\"Abrir registo\", \"OK\"} default button \"OK\" with icon caution" -e "button returned of result" 2>/dev/null)
+  r=$(osascript -e "display dialog \"$1\n\nSe o problema continuar, envia o ficheiro de registo a quem te deu a app.\" with title \"Earmark\" buttons {\"Abrir registo\", \"OK\"} default button \"OK\" with icon caution" -e "button returned of result" 2>/dev/null)
   [ "$r" = "Abrir registo" ] && open -e "$LOG"
   exit 1
 }
@@ -68,7 +68,7 @@ trap 'rm -f "$LOCK"' EXIT
 if [ ! -x "$VPY" ] || [ ! -f "$STAMP" ]; then
   # dá sinal de vida logo: uma página local que passa sozinha para a app quando estiver pronta
   open "$PREP"
-  aviso "Primeira utilização: a preparar o SFX Tagger. Acompanha no browser."
+  aviso "Primeira utilização: a preparar o Earmark. Acompanha no browser."
 
   if [ ! -x "$UV" ]; then
     echo "A instalar o uv…"

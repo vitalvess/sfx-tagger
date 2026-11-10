@@ -214,7 +214,7 @@ class Knowledge:
                 mat2 = (np.load(io.BytesIO(z.read("embeddings2.npy"))).astype(np.float32)
                         if "embeddings2.npy" in z.namelist() else None)
         except Exception:
-            raise ValueError("Este ficheiro não é um ficheiro de conhecimento do SFX Tagger (.sfxk)")
+            raise ValueError("Este ficheiro não é um ficheiro de conhecimento do Earmark (.sfxk)")
         if len(items) != len(mat) or (len(mat) and mat.shape[1] != 512):
             raise ValueError("O ficheiro de conhecimento está danificado")
         new = updated = same = 0

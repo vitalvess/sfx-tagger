@@ -1,4 +1,4 @@
-/* SFX Tagger: instrumento de trabalho, não página web.
+/* Earmark: instrumento de trabalho, não página web.
    Linhas finas em vez de cartões, números em mono, cantos retos. A cor forte (--accent) fica
    reservada para o que está "ao vivo": cursor de reprodução, som ativo, gravação do microfone. */
 @font-face { font-family: "Plex Cond"; font-weight: 400; font-display: swap; src: url(fontes/plex-cond-400.woff2) format("woff2"); }

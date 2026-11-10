@@ -1,4 +1,4 @@
-"""Gera 'SFX Tagger (Mac).zip' com a app 'SFX Tagger.app' pronta a abrir.
+"""Gera 'Earmark (Mac).zip' com a app 'Earmark.app' pronta a abrir.
 
 Pode correr em qualquer sistema (não precisa de um Mac):
     python ferramentas/build_mac_app.py [pasta_de_saida] [--lancador executavel]
@@ -25,15 +25,15 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from sfxtagger import __version__  # noqa: E402
 
-APP = "SFX Tagger.app"
+APP = "Earmark.app"
 EXE = "sfxtagger"
 
 INFO_PLIST = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>SFX Tagger</string>
-  <key>CFBundleDisplayName</key><string>SFX Tagger</string>
+  <key>CFBundleName</key><string>Earmark</string>
+  <key>CFBundleDisplayName</key><string>Earmark</string>
   <key>CFBundleIdentifier</key><string>local.sfxtagger.app</string>
   <key>CFBundleVersion</key><string>{__version__}</string>
   <key>CFBundleShortVersionString</key><string>{__version__}</string>
@@ -50,7 +50,8 @@ INFO_PLIST = f"""<?xml version="1.0" encoding="UTF-8"?>
 LEIA_ME = """SFX TAGGER PARA MAC
 ===================
 
-1. Arrasta "SFX Tagger" para a pasta Aplicacoes.
+1. Arrasta "Earmark" para a pasta Aplicacoes. Se ja tinhas a versao antiga,
+   chamada "SFX Tagger", apaga-a: o que a IA aprendeu e o teu trabalho mantem-se.
 
 2. Abre-o com duplo clique.
 
@@ -58,17 +59,17 @@ LEIA_ME = """SFX TAGGER PARA MAC
    App Store nem assinada pela Apple. Para a autorizar (so uma vez):
 
    macOS 15 (Sequoia) ou mais recente:
-     - Aparece "SFX Tagger nao foi aberto". Clica em "Concluido".
+     - Aparece "Earmark nao foi aberto". Clica em "Concluido".
      - Abre Definicoes do Sistema > Privacidade e Seguranca.
-     - Desce ate ao fim: "SFX Tagger foi bloqueado..." > "Abrir na mesma".
+     - Desce ate ao fim: "Earmark foi bloqueado..." > "Abrir na mesma".
      - Confirma com a tua palavra-passe e depois em "Abrir na mesma".
 
    macOS 14 ou anterior:
-     - Clica com o botao direito em SFX Tagger > Abrir > Abrir.
+     - Clica com o botao direito em Earmark > Abrir > Abrir.
 
    Se nao aparecer "Abrir na mesma", abre o Terminal, cola esta linha e
    carrega Enter (faz o mesmo que autorizar):
-     xattr -cr "/Applications/SFX Tagger.app"
+     xattr -cr "/Applications/Earmark.app"
 
 3. Na primeira abertura a app instala tudo sozinha. Precisa de internet e
    de cerca de 3 GB livres:
@@ -177,7 +178,7 @@ def _add_dir(z: zipfile.ZipFile, name: str) -> None:
 
 
 def build(out_dir: Path, lancador: Path | None = None) -> Path:
-    out = out_dir / f"SFX Tagger (Mac) v{__version__}.zip"
+    out = out_dir / f"Earmark (Mac) v{__version__}.zip"
     out.unlink(missing_ok=True)
     launcher = (ROOT / "ferramentas" / "mac_launcher.sh").read_bytes().replace(b"\r\n", b"\n")
     c = f"{APP}/Contents"

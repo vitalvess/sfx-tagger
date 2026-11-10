@@ -76,7 +76,7 @@ function showSetup(s) {
   const err = s.state === "erro";
   $("#setupModal").classList.toggle("hidden", !(busy || err));
   if (!(busy || err)) return false;
-  $("#setupTitle").textContent = err ? "A instalação não terminou" : "A preparar o SFX Tagger";
+  $("#setupTitle").textContent = err ? "A instalação não terminou" : "A preparar o Earmark";
   $("#setupStep").textContent = err ? "Ocorreu um problema." : s.step || "A preparar…";
   $("#setupSpin").classList.toggle("hidden", err);
   $("#setupElapsed").textContent = s.elapsed ? `Tempo decorrido: ${Math.floor(s.elapsed / 60)} min ${s.elapsed % 60} s` : "";
