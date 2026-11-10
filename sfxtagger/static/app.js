@@ -30,6 +30,7 @@ const CONF_TEXT = {
   baixa: "Confiança baixa: a IA tem dúvidas, vê as outras sugestões",
 };
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Cmd" : "Ctrl";
+const MOD_GLYPH = MOD === "Cmd" ? "⌘" : "Ctrl";
 const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
 const DEFAULT_KEYS = ["library", "designer", "creator_id", "source_id", "microphone", "rec_medium", "location"];
@@ -158,7 +159,8 @@ function loadProject(p) {
   S.root = p.root;
   S.defaults = p.defaults || {};
   setRecords(p.records);
-  $("#folderLabel").textContent = p.root;
+  $("#folderLabel").textContent = p.is_upload ? "Sons carregados" : p.root;
+  $(".folder-info").title = p.root;
   if ($("#adminView").classList.contains("hidden")) showSounds();
   S.isUpload = !!p.is_upload;
   ["#btnAnalyze", "#btnWrite", "#btnDefaults", "#btnExport"].forEach((s) => $(s).disabled = false);
@@ -202,7 +204,8 @@ function renderList() {
   const counts = { all: S.records.length, novo: 0, sugerido: 0, revisto: 0, gravado: 0, erro: 0 };
   S.records.forEach((r) => counts[statusOf(r)]++);
   $("#statusCount").innerHTML = S.records.length
-    ? `<b>${counts.all}</b> sons &nbsp; <b>${counts.sugerido}</b> por rever &nbsp; <b>${counts.gravado}</b> gravados` : "";
+    ? `<b>${counts.sugerido}</b> por rever · <b>${counts.revisto}</b> revistos · <b>${counts.gravado}</b> gravados` : "";
+  $("#folderCount").textContent = S.records.length ? ` · ${counts.all} ${counts.all === 1 ? "som" : "sons"}` : "";
   $$("#filters button").forEach((b) => {
     b.classList.toggle("on", b.dataset.f === S.filter);
     $("span", b).textContent = counts[b.dataset.f] || 0;
@@ -222,13 +225,13 @@ function renderList() {
       ? `<span class="conf ${level}" title="${esc(CONF_TEXT[level] || "")}">${Math.round(conf.score * 100)}%</span>` : "";
     const st = statusOf(r);
     return `<tr data-id="${r.id}" class="${r.id === S.active ? "active" : ""}">
-      <td class="c-chk"><input type="checkbox" ${S.selected.has(r.id) ? "checked" : ""}></td>
+      <td class="c-chk"><input type="checkbox" aria-label="Selecionar ${esc(basename(r.path))}" ${S.selected.has(r.id) ? "checked" : ""}></td>
       <td class="c-st"><span class="dot ${st}" role="img" aria-label="${esc(STATUS_TEXT[st] || st)}" title="${esc(STATUS_TEXT[st] || st)}"></span></td>
-      <td title="${esc(r.path)}">${r.dirty && r.status !== "gravado" ? '<span class="dirty-mark" title="Alterações por gravar"></span>' : ""}${esc(basename(r.path))}</td>
+      <td class="c-name" title="${esc(r.path)}">${r.dirty && r.status !== "gravado" ? '<span class="dirty-mark" title="Alterações por gravar"></span>' : ""}${esc(basename(r.path))}</td>
       <td class="c-dur">${fmtDur(r.tech?.duration)}</td>
       <td class="c-cat">${esc(f.catid)}</td>
-      <td>${esc(f.fxname)}</td>
-      <td class="muted">${esc(f.description)}</td>
+      <td class="c-fx">${esc(f.fxname)}</td>
+      <td class="c-desc muted">${esc(f.description)}</td>
       <td class="c-conf">${confTxt}</td></tr>`;
   }).join("");
   updateSelBar();
@@ -242,7 +245,7 @@ function updateAccuracy() {
   const right = reviewed.filter((r) => r.review.verdict === "certo").length;
   const top5 = reviewed.filter((r) => r.review.verdict === "top5").length;
   el.classList.remove("hidden");
-  el.innerHTML = `IA acertou <b>${right}/${reviewed.length}</b> ${Math.round((right / reviewed.length) * 100)}%` +
+  el.innerHTML = `IA acertou <b>${right}/${reviewed.length}</b> (${Math.round((right / reviewed.length) * 100)}%)` +
     (top5 ? ` +${top5} nas 5 sugestões` : "");
 }
 
@@ -324,102 +327,132 @@ function renderDetail() {
   const sug = r.suggestion;
   const cat = S.ucsById.get(f.catid);
 
-  const sugHtml = sug ? sug.categories.map((c, i) => `
-      <button class="sug ${c.catid === f.catid ? "on" : ""}" data-catid="${esc(c.catid)}" title="Tecla ${i + 1}">
-        <span class="k">${i + 1}</span><span class="id">${esc(c.catid)}</span>
-        <span class="nm">${esc(c.category)} · ${esc(c.subcategory)}</span>
-        <span class="pc">${Math.round(c.score * 100)}%</span>
+  const sugHtml = sug ? sug.categories.slice(0, 5).map((c, i) => `
+      <button class="sug ${c.catid === f.catid ? "on" : ""}" data-catid="${esc(c.catid)}" aria-pressed="${c.catid === f.catid}" aria-keyshortcuts="${i + 1}" title="${esc(c.category)} › ${esc(c.subcategory)} · ${Math.round(c.score * 100)}% (tecla ${i + 1})">
+        <span class="k">${i + 1}</span>
+        <span class="sug-txt"><span class="nm">${esc(c.subcategory === c.category ? c.category : `${c.category} ${c.subcategory}`)}</span>
+        <span class="id">${esc(c.catid)} <span class="pc">${Math.round(c.score * 100)}%</span></span></span>
         <span class="pbar"><div style="width:${Math.round(c.score * 100)}%"></div></span>
       </button>`).join("") : "";
-  const kwChips = (sug?.keywords || []).concat(cat ? cat.synonyms.slice(0, 6) : [])
-    .filter((k, i, a) => a.indexOf(k) === i)
-    .map((k) => `<button class="chip" data-kw="${esc(k)}">+ ${esc(k)}</button>`).join("");
+  const why = sug ? [
+    sug.models === 3 ? "Precisão máxima: três modelos a ouvir." : "",
+    sug.trained ? "Ajustado pelo classificador treinado com os sons já confirmados." : "",
+    sug.memory?.length ? `Aprendido com sons já confirmados: ${sug.memory.slice(0, 3).map((m) =>
+      `${m.n} som${m.n > 1 ? "s" : ""} parecido${m.n > 1 ? "s" : ""} confirmado${m.n > 1 ? "s" : ""} como <b>${esc(m.catid)}</b> (${Math.round(m.best * 100)}% semelhante)`).join("; ")}.` : "",
+    sug.used_name ? `Combinado com pistas do nome: <i>${esc([...(sug.name_words || []), ...(sug.folder_words || []).map((w) => w + " (pasta)")].join(", "))}</i>.` : "",
+  ].filter(Boolean) : [];
+  const kwSuggest = (sug?.keywords || []).concat(cat ? cat.synonyms.slice(0, 6) : [])
+    .filter((k, i, a) => a.findIndex((x) => x.toLowerCase() === k.toLowerCase()) === i);
+  const confLevel = sug?.confidence?.level;
 
   el.innerHTML = `
     <div class="d-head">
-      <div class="d-name">${esc(basename(r.path))}</div>
+      <div class="d-title">
+        <h2 class="d-name" title="${esc(r.path)}">${esc(basename(r.path))}</h2>
+        <div class="tech">${techTags(r.tech)}</div>
+        ${verdictBadge(r)}
+      </div>
       <div class="d-path">${r.path === basename(r.path) ? "" : esc(r.path)}</div>
-      <div class="tech">${techTags(r.tech)}</div>
     </div>
-    ${r.error ? `<div class="err-box">Erro: ${esc(r.error)}</div>` : ""}
+    ${r.error ? `<div class="err-box"><span class="dot erro" aria-hidden="true"></span> Erro: ${esc(r.error)}</div>` : ""}
     <div class="wave-box">
-      <div class="wave-wrap" id="waveWrap"><canvas id="wave"></canvas></div>
-      <div class="transport">
-        <button class="small icon" id="btnPlay" title="Tocar / parar (Espaço)" aria-label="Tocar ou parar (Espaço)">${ICON_PLAY}</button>
+      <div class="wave-wrap" id="waveWrap" title="Clica para ouvir a partir desse ponto"><canvas id="wave"></canvas>
+        <button class="icon play" id="btnPlay" title="Tocar / parar (Espaço)" aria-label="Tocar ou parar (Espaço)">${ICON_PLAY}</button>
         <span class="time" id="ptime">0:00</span>
-        <div class="spacer"></div>
-        <label><input type="checkbox" id="autoplay" ${S.autoplay ? "checked" : ""}> tocar ao escolher</label>
-        <span class="kbd">espaço</span>
+      </div>
+      <div class="transport">
+        <label class="check-inline"><input type="checkbox" id="autoplay" ${S.autoplay ? "checked" : ""}> Tocar ao escolher</label>
       </div>
     </div>
 
-    ${sug ? `<div class="section"><h3>Sugestões da IA ${sug.confidence ? `<span class="conf-badge ${sug.confidence.level}" title="${esc(CONF_TEXT[sug.confidence.level])}">confiança ${{ alta: "alta", media: "média", baixa: "baixa" }[sug.confidence.level]}</span>` : ""}</h3><div class="sugs">${sugHtml}</div>
-      ${sug.models === 3 ? '<div class="note">Precisão máxima: três modelos a ouvir.</div>' : ""}
-      ${sug.trained ? '<div class="note">Ajustado pelo classificador treinado com os sons já confirmados.</div>' : ""}
-      ${sug.memory?.length ? `<div class="note">Aprendido com sons já confirmados: ${sug.memory.slice(0, 3).map((m) =>
-        `${m.n} som${m.n > 1 ? "s" : ""} parecido${m.n > 1 ? "s" : ""} confirmado${m.n > 1 ? "s" : ""} como <b>${esc(m.catid)}</b> (${Math.round(m.best * 100)}% semelhante)`).join("; ")}</div>` : ""}
-      ${sug.used_name ? `<div class="note">Combinado com pistas do nome: <i>${esc([...(sug.name_words || []), ...(sug.folder_words || []).map((w) => w + " (pasta)")].join(", "))}</i></div>` : ""}
-    </div>` : ""}
+    <div class="d-body">
+    ${sug ? `<section class="section">
+      <div class="sec-head"><h3 class="label">CatID · Sugestões da IA</h3>
+        ${sug.confidence ? `<span class="conf-badge ${confLevel}" title="${esc(CONF_TEXT[confLevel])}">confiança ${{ alta: "alta", media: "média", baixa: "baixa" }[confLevel]}</span>` : ""}</div>
+      <div class="sugs">${sugHtml}</div>
+      ${why.length ? `<details class="why"><summary>Porque estas sugestões?</summary>${why.map((w) => `<p>${w}</p>`).join("")}</details>` : ""}
+    </section>` : ""}
     ${segmentsHtml(r)}
 
-    <div class="section">
-      <h3>Metadados ${verdictBadge(r)}</h3>
-      ${sug ? `<div class="field heard">
-        <label for="fHeard">O que ouves? <span class="muted">(opcional)</span></label>
-        <div class="with-mic"><input id="fHeard" value="${esc(r.review?.heard)}" placeholder="ex.: iron gate slam, keys jingle, paper crumple…">${micButton("heard")}</div>
-        <div class="hint">Descreve o som em poucas palavras, de preferência em inglês. A IA volta a ordenar as sugestões com essa pista (Enter).</div>
-      </div>` : ""}
+    <section class="section">
       <div class="field">
-        <label>CatID (UCS) <span>${cat ? "" : f.catid ? '<span style="color:var(--err)">CatID desconhecido</span>' : ""}</span></label>
+        <label for="fCatid">${sug ? "Outra categoria" : "CatID (UCS)"} <span class="muted">${cat ? "" : f.catid ? '<span class="err-txt">CatID desconhecido</span>' : "escreve para procurar"}</span></label>
         <div class="cat-combo">
-          <input id="fCatid" value="${esc(f.catid)}" placeholder="Escreve para procurar: door, metal, whoosh…" autocomplete="off">
+          <input id="fCatid" value="${esc(f.catid)}" placeholder="door, metal, whoosh…" autocomplete="off" spellcheck="false">
           <div class="cat-results hidden" id="catResults"></div>
         </div>
-        <div class="cat-info">${cat ? `${esc(cat.category)} › ${esc(cat.subcategory)} — ${esc(cat.explanation)}` : ""}</div>
+        <div class="cat-info">${cat ? `<b>${esc(cat.category)} › ${esc(cat.subcategory)}</b> — ${esc(cat.explanation)}` : ""}</div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="fFxname">FXName <span class="count" id="fxCount"></span></label>
+          <input id="fFxname" data-f="fxname" value="${esc(f.fxname)}" placeholder="ex.: Door Wood Creak Slow">
+        </div>
+        ${sug ? `<div class="field heard">
+          <label for="fHeard">O que ouves? <span class="muted">opcional · Enter reordena</span></label>
+          <div class="with-mic"><input id="fHeard" value="${esc(r.review?.heard)}" placeholder="ex.: iron gate slam">${micButton("heard")}</div>
+        </div>` : "<div></div>"}
       </div>
       <div class="field">
-        <label>FXName <span class="count" id="fxCount"></span></label>
-        <input data-f="fxname" value="${esc(f.fxname)}" placeholder="Nome curto, ex.: Door Wood Creak Slow">
+        <label for="fDesc">Description <span class="muted">o som, o ambiente e o local</span></label>
+        <div class="with-mic"><textarea id="fDesc" data-f="description" rows="2">${esc(f.description)}</textarea>${micButton("description")}</div>
       </div>
       <div class="field">
-        <label>Description <span class="muted">ditar: descreve o som, o ambiente e o local</span></label>
-        <div class="with-mic"><textarea data-f="description" rows="3">${esc(f.description)}</textarea>${micButton("description")}</div>
+        <label for="kwInput">Keywords</label>
+        <input type="hidden" data-f="keywords" value="${esc(f.keywords)}">
+        <div class="kw-box" id="kwBox">
+          <span id="kwChips" class="kws"></span>
+          <input id="kwInput" placeholder="acrescentar…" autocomplete="off" aria-label="Acrescentar keyword (Enter)">
+        </div>
+        <div class="kws kw-sug" id="kwSuggest" aria-label="Keywords sugeridas"></div>
       </div>
-      <div class="field">
-        <label>Location <span class="muted">onde foi gravado (ex.: Lisboa, cozinha de uma casa antiga)</span></label>
-        <div class="with-mic"><input data-f="location" value="${esc(f.location)}">${micButton("location")}</div>
-      </div>
-      <div class="field">
-        <label>Keywords <span>separadas por vírgulas</span></label>
-        <textarea data-f="keywords" rows="2">${esc(f.keywords)}</textarea>
-        <div class="chips" id="kwChips">${kwChips}</div>
-      </div>
-      <details>
-        <summary>Mais campos (Library, Designer, Microphone…)</summary>
+      <details class="more">
+        <summary>Mais campos <span class="muted">Location, Notes, Library, Designer, Microphone…</span></summary>
+        <div class="field">
+          <label for="fLoc">Location <span class="muted">onde foi gravado</span></label>
+          <div class="with-mic"><input id="fLoc" data-f="location" value="${esc(f.location)}" placeholder="ex.: Porto, cozinha de uma casa antiga">${micButton("location")}</div>
+        </div>
         <div class="field"><label>Notes</label><div class="with-mic"><textarea data-f="notes" rows="2">${esc(f.notes)}</textarea>${micButton("notes")}</div></div>
         <div class="grid2">
           ${DEFAULT_KEYS.filter((k) => k !== "location").map((k) => `<div class="field"><label>${FIELD_LABELS[k]}</label>
             <input data-f="${k}" value="${esc(f[k])}"></div>`).join("")}
         </div>
+        <div class="field"><label>Nome UCS <span class="muted">se renomeares ao gravar</span></label>
+          <div class="ucsname" id="ucsName"></div></div>
       </details>
-      <div class="field"><label>Nome UCS (se renomeares ao gravar)</label>
-        <div class="ucsname" id="ucsName"></div></div>
+    </section>
     </div>
 
     <div class="actions">
-      <button class="primary" id="btnApprove" title="Confirma a categoria e os campos deste som">Confirmar e seguinte <span class="kbd">${MOD}+Enter</span></button>
-      ${r.group ? '<button id="btnGroup" title="Seleciona os outros takes da mesma série">Série</button>' : ""}
-      ${sug ? '<button id="btnSimilar" title="Seleciona sons parecidos (pela IA)">Semelhantes</button>' : ""}
+      <span class="hint"><kbd>↑↓</kbd> som · <kbd>Espaço</kbd> tocar · <kbd>1–5</kbd> categoria · <kbd>?</kbd> atalhos</span>
+      <div class="spacer"></div>
+      ${r.group ? '<button id="btnGroup" title="Seleciona os outros takes da mesma série">Selecionar série</button>' : ""}
+      ${sug ? '<button id="btnSimilar" title="Seleciona sons parecidos (pela IA)">Selecionar semelhantes</button>' : ""}
       <button id="btnReanalyze" title="Voltar a analisar este som">Reanalisar</button>
+      <button class="primary" id="btnApprove" title="Confirma a categoria e os campos deste som" aria-keyshortcuts="${MOD === "Cmd" ? "Meta" : "Control"}+Enter">Confirmar e seguinte <kbd>${MOD_GLYPH} ↵</kbd></button>
     </div>`;
 
+  renderKeywords(kwSuggest);
   // eventos
   $$(".sug", el).forEach((b) => b.onclick = () => setCatid(b.dataset.catid));
   $$("[data-f]", el).forEach((inp) => inp.addEventListener("input", () => {
     queueSave({ [inp.dataset.f]: inp.value });
+    if (inp.dataset.f === "keywords") renderKeywords();
     updateDerived();
   }));
-  $$("#kwChips .chip", el).forEach((b) => b.onclick = () => addKeyword(b.dataset.kw, b));
+  const kwIn = $("#kwInput");
+  kwIn.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" && !e.ctrlKey && !e.metaKey) || e.key === ",") {
+      e.preventDefault();
+      kwIn.value.split(",").map((k) => k.trim()).filter(Boolean).forEach((k) => addKeyword(k));
+      kwIn.value = "";
+    } else if (e.key === "Backspace" && !kwIn.value) {
+      const list = kwList();
+      if (list.length) setKeywords(list.slice(0, -1));
+    }
+  });
+  kwIn.addEventListener("blur", () => { if (kwIn.value.trim()) { addKeyword(kwIn.value.trim()); kwIn.value = ""; } });
+  $("#kwBox").addEventListener("click", (e) => { if (e.target.id === "kwBox" || e.target.id === "kwChips") kwIn.focus(); });
   setupCatCombo();
   const heard = $("#fHeard");
   if (heard) {
@@ -511,7 +544,7 @@ function segmentsInner(r) {
 function verdictBadge(r) {
   const v = r.review?.verdict;
   if (!v) return "";
-  const txt = { certo: "IA acertou", top5: "IA quase: estava nas sugestões", errado: "IA errou" }[v];
+  const txt = { certo: "IA acertou", top5: "Estava nas 5 sugestões", errado: "IA errou" }[v];
   const tip = v === "certo" ? "" : ` title="A IA sugeriu ${esc(r.review.ai_catid)}"`;
   return `<span class="verdict ${v}"${tip}>${txt}</span>`;
 }
@@ -529,13 +562,35 @@ function updateDerived() {
   $("#ucsName").textContent = name;
 }
 
-function addKeyword(kw, btn) {
-  const ta = $('[data-f="keywords"]');
-  const list = ta.value.split(",").map((s) => s.trim()).filter(Boolean);
-  if (!list.map((s) => s.toLowerCase()).includes(kw.toLowerCase())) list.push(kw);
-  ta.value = list.join(", ");
-  queueSave({ keywords: ta.value });
-  btn?.remove();
+// --- keywords: guardadas como texto separado por vírgulas, mostradas como chips
+let KW_SUGGEST = [];
+function kwList() {
+  const inp = $('[data-f="keywords"]');
+  return (inp?.value || "").split(",").map((k) => k.trim()).filter(Boolean);
+}
+function setKeywords(list) {
+  const inp = $('[data-f="keywords"]');
+  if (!inp) return;
+  inp.value = list.join(", ");
+  queueSave({ keywords: inp.value });
+  renderKeywords();
+}
+function addKeyword(kw) {
+  const list = kwList();
+  if (!list.map((k) => k.toLowerCase()).includes(kw.toLowerCase())) list.push(kw);
+  setKeywords(list);
+}
+function renderKeywords(suggest) {
+  if (suggest) KW_SUGGEST = suggest;
+  const box = $("#kwChips"), sbox = $("#kwSuggest");
+  if (!box) return;
+  const list = kwList();
+  const have = new Set(list.map((k) => k.toLowerCase()));
+  box.innerHTML = list.map((k, i) => `<button type="button" class="kw" data-i="${i}" title="Tirar «${esc(k)}»" aria-label="Tirar ${esc(k)}">${esc(k)}<span aria-hidden="true">×</span></button>`).join("");
+  const rest = KW_SUGGEST.filter((k) => !have.has(k.toLowerCase()));
+  sbox.innerHTML = rest.map((k) => `<button type="button" class="kw kw-suggested" data-kw="${esc(k)}" title="Acrescentar «${esc(k)}»">+ ${esc(k)}</button>`).join("");
+  $$(".kw[data-i]", box).forEach((b) => b.onclick = () => setKeywords(list.filter((_, i) => i !== +b.dataset.i)));
+  $$(".kw[data-kw]", sbox).forEach((b) => b.onclick = () => addKeyword(b.dataset.kw));
 }
 
 // --- pesquisa de CatID
@@ -693,10 +748,13 @@ player.addEventListener("timeupdate", () => {
   const t = $("#ptime");
   if (t) t.textContent = `${fmtDur(player.currentTime)} / ${fmtDur(player.duration || 0)}`;
 });
-(function loop() {
-  if (!player.paused) drawWave();
+// com "reduzir movimento" o cursor salta 4 vezes por segundo em vez de deslizar
+const REDUCED = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+let lastDraw = 0;
+(function loop(t) {
+  if (!player.paused && (!REDUCED?.matches || t - lastDraw > 250)) { drawWave(); lastDraw = t; }
   requestAnimationFrame(loop);
-})();
+})(0);
 
 function drawWave() {
   const c = $("#wave");
@@ -730,12 +788,15 @@ function drawWave() {
       g.fillText(`${m}:${(step < 1 ? sec.toFixed(1).padStart(4, "0") : String(Math.round(sec)).padStart(2, "0"))}`, x + 4, top / 2);
     }
   }
-  const n = peaks.length;
-  for (let x = 0; n && x < w; x++) {
-    const p = peaks[Math.floor((x / w) * n)] || 0;
-    const bh = Math.max(1, p * (h - top - 8));
+  // barras de 2 px com 1 px de intervalo (como no logotipo), pico de cada grupo
+  const n = peaks.length, BAR = 2, PITCH = 3;
+  for (let x = 0; n && x < w; x += PITCH) {
+    const a = Math.floor((x / w) * n), b = Math.max(a + 1, Math.floor(((x + PITCH) / w) * n));
+    let p = 0;
+    for (let i = a; i < b && i < n; i++) p = Math.max(p, peaks[i] || 0);
+    const bh = Math.max(2, Math.round(p * (h - top - 16)));
     g.fillStyle = x / w < prog ? played : col;
-    g.fillRect(x, mid - bh / 2, 1, bh);
+    g.fillRect(x, Math.round(mid - bh / 2), BAR, bh);
   }
   if (prog) { g.fillStyle = v("--accent"); g.fillRect(Math.floor(prog * w), 0, 1, h); }
 }
@@ -956,7 +1017,7 @@ $("#defPrecision").onchange = async (e) => {
   } catch (err) { e.target.checked = !on; toast(err.message, true); }
 };
 
-$("#btnAnalyze").onclick = (e) => { e.stopPropagation(); $("#analyzeMenu").classList.toggle("hidden"); };
+$("#btnAnalyze").onclick = (e) => { e.stopPropagation(); closeMenus("#analyzeMenu"); $("#analyzeMenu").classList.toggle("hidden"); };
 $$("#analyzeMenu button").forEach((b) => b.onclick = () => {
   $("#analyzeMenu").classList.add("hidden");
   const mode = b.dataset.an;
@@ -1065,7 +1126,7 @@ $("#btnRestore").onclick = async () => {
 
 $("#btnUpload").onclick = () => $("#fileInput").click();
 $("#btnUpload2").onclick = () => $("#fileInput").click();
-$("#keyMod").textContent = MOD;
+$$(".kmod").forEach((k) => (k.textContent = MOD_GLYPH));
 $("#fileInput").onchange = (e) => { uploadFiles(e.target.files); e.target.value = ""; };
 
 let dragDepth = 0;
@@ -1095,7 +1156,14 @@ window.addEventListener("drop", (e) => {
 });
 
 // menu exportar
-$("#btnExport").onclick = (e) => { e.stopPropagation(); $("#exportMenu").classList.toggle("hidden"); };
+$("#btnExport").onclick = (e) => { e.stopPropagation(); closeMenus("#exportMenu"); $("#exportMenu").classList.toggle("hidden"); };
+function closeMenus(except) { $$(".menu").forEach((m) => { if (!except || !m.matches(except)) m.classList.add("hidden"); }); }
+$("#btnMore").onclick = (e) => { e.stopPropagation(); closeMenus("#moreMenu"); $("#moreMenu").classList.toggle("hidden"); };
+$$("#moreMenu button, #moreMenu a").forEach((b) => b.addEventListener("click", () => $("#moreMenu").classList.add("hidden")));
+document.addEventListener("click", () => $("#moreMenu").classList.add("hidden"));
+function showKeys() { $("#keysModal").classList.remove("hidden"); $("#keysModal [data-close]").focus(); }
+$("#btnKeys").onclick = showKeys;
+$("#btnKeys2").onclick = showKeys;
 $$("#exportMenu a").forEach((a) => a.addEventListener("click", async (e) => {
   $("#exportMenu").classList.add("hidden");
   await flushSave();
@@ -1456,8 +1524,16 @@ $("#wGo").onclick = async () => {
 document.addEventListener("keydown", (e) => {
   const typing = e.target.matches("input, textarea, select");
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); approveAndNext(); return; }
-  if (e.key === "Escape" && typing) { e.target.blur(); return; }
+  // num diálogo, Esc fecha logo, mesmo com o cursor num campo; na ficha do som só sai do campo
+  if (e.key === "Escape" && typing && !e.target.closest(".modal:not([data-locked])")) { e.target.blur(); return; }
+  if (e.key === "Escape") {
+    closeMenus();
+    const m = $(".modal:not(.hidden):not([data-locked])");
+    if (m) m.classList.add("hidden");
+    return;
+  }
   if (typing || $(".modal:not(.hidden)")) return;
+  if (e.key === "?") { e.preventDefault(); showKeys(); return; }
   if (e.key === " ") { e.preventDefault(); togglePlay(); }
   else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();

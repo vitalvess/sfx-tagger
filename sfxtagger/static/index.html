@@ -4,38 +4,48 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Earmark</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23121110'/%3E%3Cpath fill='%23e8e2d6' d='M2 7h1v2H2zM4 5h1v6H4zM10 6h1v4h-1zM12 4h1v8h-1z'/%3E%3Cpath fill='%23ff5a36' d='M7 2h1v12H7z'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23e8e2d6' d='M1 0h10l4 4v12H1z'/%3E%3Cpath fill='%238f897d' d='M11 0l4 4h-4z'/%3E%3Cpath fill='%23ff5a36' d='M7 4h2v9H7z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">ear<b>/</b>mark</div>
-  <button id="btnFolder" class="folder" title="Abrir pasta de sons">
-    <span id="folderLabel">Abrir pasta…</span>
-  </button>
-  <div class="spacer"></div>
+  <div class="brand" aria-label="Earmark">
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path class="bm-page" d="M0 0h44l20 20v44H0z"/><path class="bm-fold" d="M44 0l20 20H44z"/><g class="bm-bars"><rect x="8" y="27" width="4" height="10"/><rect x="16" y="20" width="4" height="24"/><rect x="24" y="23" width="4" height="18"/><rect x="40" y="24" width="4" height="16"/><rect x="48" y="28" width="4" height="8"/></g><rect class="bm-cursor" x="32" y="14" width="4" height="36"/></svg>
+    <span>Earmark</span>
+  </div>
+  <button id="btnFolder" title="Abrir pasta de sons">Abrir pasta</button>
   <div class="menu-wrap">
-    <button id="btnAnalyze" class="primary" disabled>Analisar</button>
+    <button id="btnAnalyze" disabled aria-haspopup="true">Analisar</button>
     <div class="menu hidden" id="analyzeMenu">
       <button data-an="new">Ficheiros ainda não analisados</button>
       <button data-an="sel">Só os selecionados</button>
       <button data-an="all">Reanalisar tudo</button>
     </div>
   </div>
-  <button id="btnUpload" title="Escolher ficheiros de som do computador">Carregar sons</button>
-  <button id="btnWrite" disabled>Gravar nos ficheiros</button>
-  <button id="btnDefaults" disabled title="Dados da biblioteca (Library, Designer, CreatorID…)">Biblioteca</button>
+  <div class="folder-info" title="Pasta aberta"><span id="folderLabel"></span><span id="folderCount"></span></div>
+  <div class="spacer"></div>
+  <span id="accuracy" class="accuracy admin-only hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
   <div class="menu-wrap">
-    <button id="btnExport" disabled>Exportar</button>
+    <button id="btnExport" disabled aria-haspopup="true">Exportar</button>
     <div class="menu hidden" id="exportMenu">
       <a class="btn" id="exCsv" href="/api/export.csv">Metadados (CSV)</a>
       <a class="btn" id="exZip" href="/api/download.zip">Sons com metadados (ZIP)</a>
       <a class="btn" id="exKnowledge" href="/api/knowledge/export" title="Ficheiro pequeno, sem áudio, para enviar a quem coordena o projeto">O que a IA aprendeu comigo (.sfxk), para enviar</a>
     </div>
   </div>
-  <button id="btnAdminView" class="admin-only admin-tag" title="Treinar e testar a IA, conhecimento, modelos">Administração</button>
-  <a class="btn" href="/static/ajuda.html" target="_blank" title="Como funciona a app">Ajuda</a>
-  <button id="btnQuit" class="hidden" title="Fechar a app">Sair</button>
+  <button id="btnWrite" class="primary" disabled>Gravar nos ficheiros</button>
+  <div class="menu-wrap">
+    <button id="btnMore" class="icon-more" aria-haspopup="true" aria-label="Mais opções" title="Mais opções"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="7" width="2.5" height="2.5"/><rect x="6.75" y="7" width="2.5" height="2.5"/><rect x="11.5" y="7" width="2.5" height="2.5"/></svg></button>
+    <div class="menu hidden" id="moreMenu">
+      <button id="btnUpload" title="Escolher ficheiros de som do computador">Carregar sons…</button>
+      <button id="btnDefaults" disabled title="Library, Designer, CreatorID…">Dados da biblioteca…</button>
+      <button id="btnKeys">Atalhos de teclado <kbd>?</kbd></button>
+      <a class="btn" href="/static/ajuda.html" target="_blank" title="Como funciona a app">Ajuda</a>
+      <button id="btnAdminView" class="admin-only admin-tag" title="Treinar e testar a IA, conhecimento, modelos">Administração</button>
+      <button id="btnAdmin" class="admin-entry" title="Treinar e testar a IA (para quem coordena)">Administração…</button>
+      <button id="btnQuit" class="hidden" title="Fechar a app">Sair do Earmark</button>
+    </div>
+  </div>
 </header>
 <input type="file" id="fileInput" multiple accept=".wav,.wave,.bwf,.aif,.aiff,.flac,.ogg,.mp3,audio/*" hidden>
 
@@ -116,32 +126,34 @@
 
 <main id="mainView" class="main hidden">
   <section class="list-pane">
-    <div class="toolbar">
-      <div class="filters" id="filters">
-        <button data-f="all" class="on">Todos <span></span></button>
-        <button data-f="sugerido">Por rever <span></span></button>
-        <button data-f="revisto">Revistos <span></span></button>
-        <button data-f="gravado">Gravados <span></span></button>
-        <button data-f="novo">Por analisar <span></span></button>
-        <button data-f="erro">Erros <span></span></button>
+    <div class="list-tools">
+      <div class="list-search">
+        <input id="search" type="search" placeholder="Procurar  ( / )" aria-label="Procurar sons">
+        <select id="sortSel" title="Ordem da lista (Confirmar e seguinte segue esta ordem)" aria-label="Ordem da lista">
+          <option value="nome">Por nome</option>
+          <option value="duvida">Duvidosos primeiro</option>
+        </select>
       </div>
-      <input id="search" type="search" placeholder="Procurar">
-      <select id="sortSel" title="Ordem da lista (Confirmar e seguinte segue esta ordem)">
-        <option value="nome">Por nome</option>
-        <option value="duvida">Duvidosos primeiro</option>
-      </select>
+        <div class="filters" id="filters" role="group" aria-label="Filtrar por estado">
+          <button data-f="all" class="on">Todos <span></span></button>
+          <button data-f="sugerido"><i class="dot sugerido" aria-hidden="true"></i>Por rever <span></span></button>
+          <button data-f="revisto"><i class="dot revisto" aria-hidden="true"></i>Revistos <span></span></button>
+          <button data-f="gravado"><i class="dot gravado" aria-hidden="true"></i>Gravados <span></span></button>
+          <button data-f="novo"><i class="dot novo" aria-hidden="true"></i>Por analisar <span></span></button>
+          <button data-f="erro"><i class="dot erro" aria-hidden="true"></i>Erros <span></span></button>
+        </div>
     </div>
     <div class="selbar hidden" id="selBar">
       <span id="selCount">0 selecionados</span>
-      <button id="btnBulk" class="small" disabled>Editar selecionados…</button>
-      <button id="btnApproveSel" class="small" disabled>Aprovar selecionados</button>
-      <button id="btnRemoveSel" class="small" title="Tira os sons selecionados da lista">Remover</button>
+      <button id="btnBulk" disabled>Editar…</button>
+      <button id="btnApproveSel" disabled>Aprovar</button>
+      <button id="btnRemoveSel" title="Tira os sons selecionados da lista">Remover</button>
     </div>
     <div class="table-wrap">
       <table class="files">
         <thead><tr>
-          <th class="c-chk"><input type="checkbox" id="selAll" title="Selecionar todos"></th><th class="c-st"></th><th>Ficheiro</th><th class="c-dur">Dur.</th>
-          <th class="c-cat">CatID</th><th>FXName</th><th>Description</th><th class="c-conf" title="Confiança da IA na categoria">IA</th>
+          <th class="c-chk"><input type="checkbox" id="selAll" title="Selecionar todos" aria-label="Selecionar todos"></th><th class="c-st"><span class="sr">Estado</span></th><th class="c-name">Ficheiro</th><th class="c-dur">Dur.</th>
+          <th class="c-cat">CatID</th><th class="c-fx">FXName</th><th class="c-desc">Description</th><th class="c-conf" title="Confiança da IA na categoria">IA</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -264,7 +276,6 @@
 
 <footer class="statusbar">
   <span id="statusCount"></span>
-  <span id="accuracy" class="accuracy admin-only hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
   <div id="jobBox" class="job hidden">
     <div class="job-text" id="jobText"></div>
     <div class="bar"><div id="jobBar"></div></div>
@@ -272,9 +283,25 @@
   </div>
   <button id="btnRestore" class="hidden" title="Volta a pôr na lista os sons que tiraste"></button>
   <div class="spacer"></div>
-  <span class="status-keys"><kbd>espaço</kbd> ouvir &nbsp; <kbd>1-5</kbd> categoria &nbsp; <kbd id="keyMod">Ctrl</kbd><kbd>+Enter</kbd> confirmar</span>
-  <button id="btnAdmin" class="admin-entry" title="Treinar e testar a IA (para quem coordena)">Admin</button>
+  <button id="btnKeys2" class="link-keys" title="Mapa de atalhos">? atalhos</button>
 </footer>
+<!-- Atalhos -->
+<div class="modal hidden" id="keysModal">
+  <div class="dialog">
+    <h2>Atalhos de teclado</h2>
+    <table class="keys-table">
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Som anterior / seguinte</td></tr>
+      <tr><td><kbd>Espaço</kbd></td><td>Tocar / parar</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Escolher uma das 5 sugestões de CatID</td></tr>
+      <tr><td><kbd class="kmod">Ctrl</kbd> <kbd>Enter</kbd></td><td>Confirmar e passar ao seguinte</td></tr>
+      <tr><td><kbd>/</kbd></td><td>Procurar na lista</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Sair de um campo</td></tr>
+      <tr><td><kbd class="kmod">Ctrl</kbd> + clique · <kbd>Shift</kbd> + clique</td><td>Selecionar vários / um intervalo</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Mostrar este mapa</td></tr>
+    </table>
+    <div class="dialog-foot"><div class="spacer"></div><button class="primary" data-close>Fechar</button></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div>
 <audio id="player" preload="auto"></audio>
 <script src="/static/app.js"></script>
