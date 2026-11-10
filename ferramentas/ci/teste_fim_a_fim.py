@@ -13,6 +13,7 @@ Só usa a biblioteca padrão: corre com qualquer Python, fora do ambiente da app
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import math
 import random
@@ -46,7 +47,7 @@ def esperar(desc: str, limite: float, teste) -> object:
             if r:
                 print(f"OK  {desc} ({time.time() - t0:.0f} s)", flush=True)
                 return r
-        except (urllib.error.URLError, OSError, ValueError) as e:
+        except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
             msg = str(e)
             if msg != ultimo:
                 print(f"    ... {desc}: {msg}", flush=True)
