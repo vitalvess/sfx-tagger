@@ -107,6 +107,30 @@ code { font-family: var(--mono); font-size: 12px; }
 .count-badge { font: 400 12px var(--mono); color: var(--muted); }
 .count-badge::before { content: "["; } .count-badge::after { content: "]"; }
 
+/* Administração: só aparece depois do PIN */
+body:not(.admin) .admin-only { display: none !important; }
+body.admin .admin-entry { display: none; }
+.topbar .admin-tag { color: var(--accent); }
+.topbar .admin-tag::before { content: ""; width: 6px; height: 6px; background: var(--accent); }
+.admin-view { flex: 1; display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 0; }
+.admin-nav { display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line-strong); }
+.admin-head { font: 500 12px/1 var(--mono); color: var(--accent); padding: 14px 14px 10px; }
+.admin-nav button { border: 0; border-bottom: 1px solid var(--line); padding: 9px 14px; text-align: left; justify-content: flex-start; color: var(--muted); }
+.admin-nav button.on { color: var(--text); background: var(--bg); box-shadow: inset 2px 0 0 var(--accent); }
+.admin-nav button:hover:not(:disabled) { color: var(--text); }
+.admin-nav .spacer { border-bottom: 1px solid var(--line); }
+.admin-body { overflow-y: auto; padding: 18px 28px 40px; }
+.admin-panel { max-width: 860px; }
+.admin-panel h2 { font-size: 20px; font-weight: 500; margin: 6px 0 8px; }
+.admin-panel h2 + p, .admin-panel > p { max-width: 70ch; }
+.admin-panel h3 { font-size: 15px; font-weight: 500; margin: 22px 0 4px; }
+.admin-panel .pathrow { margin: 12px 0 6px; max-width: 760px; }
+.admin-panel .pathrow input { border-left: 1px solid var(--line); border-right: 0; }
+.admin-panel .pin-row input { border-right: 1px solid var(--line); max-width: 160px; }
+.admin-panel .check { max-width: 70ch; }
+.dialog.narrow { width: 360px; }
+#pinModal input { margin-top: 6px; font: 400 16px var(--mono); letter-spacing: .2em; }
+
 /* barra de estado */
 .statusbar {
   flex: none; height: 24px; display: flex; align-items: center; gap: 18px; padding: 0 12px;
@@ -122,6 +146,8 @@ code { font-family: var(--mono); font-size: 12px; }
 .statusbar button { height: 18px; padding: 0 7px; font: 400 11.5px var(--mono); border-color: var(--line-strong); }
 #btnStop { order: 3; flex: none; }
 #btnRestore { flex: none; color: var(--muted); }
+.statusbar .admin-entry { border-color: transparent; color: var(--muted); }
+.statusbar .admin-entry:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
 .status-keys kbd { font: inherit; color: var(--text); }
 .accuracy { color: var(--muted); }
 
@@ -365,6 +391,11 @@ button.mic.busy { pointer-events: none; }
 .seg-use { padding: 0 6px; border: 0; color: var(--muted); font-size: 13px; justify-content: flex-end; }
 
 @media (max-width: 980px) {
+  .admin-view { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .admin-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line-strong); }
+  .admin-nav .admin-head { width: 100%; }
+  .admin-nav .spacer { display: none; }
+  .admin-body { padding: 14px 16px 30px; }
   body { overflow: auto; }
   .topbar { height: auto; flex-wrap: wrap; }
   .topbar .spacer { display: none; }

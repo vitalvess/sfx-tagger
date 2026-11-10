@@ -307,7 +307,9 @@ class Project:
         return True
 
     # --- análise -----------------------------------------------------------
-    def start_analysis(self, ids: list[str] | None, force: bool) -> bool:
+    def start_analysis(self, ids: list[str] | None, force: bool, approve_labeled: bool = False) -> bool:
+        """approve_labeled: no fim, a IA aprende com todos os sons que já vinham classificados
+        (Administração > Treinar com uma pasta classificada)."""
         with self.lock:
             if self.job["running"] or self.writing:
                 return False
@@ -317,12 +319,12 @@ class Project:
                 todo = [rid for rid, r in self.records.items()
                         if not r.get("missing") and (force or r.get("suggestion") is None)]
             self.job = {"running": True, "phase": "a preparar", "done": 0, "total": len(todo),
-                        "current": "", "errors": 0, "message": ""}
+                        "current": "", "errors": 0, "message": "", "kind": "treino" if approve_labeled else "analise"}
             self._stop.clear()
-        threading.Thread(target=self._run_analysis, args=(todo,), daemon=True).start()
+        threading.Thread(target=self._run_analysis, args=(todo, approve_labeled), daemon=True).start()
         return True
 
-    def _run_analysis(self, todo: list[str]) -> None:
+    def _run_analysis(self, todo: list[str], approve_labeled: bool = False) -> None:
         tagger = get_tagger()
         try:
             self.job["phase"] = tagger.status
@@ -365,6 +367,10 @@ class Project:
             if not stopped:
                 self.job["phase"] = "a comparar takes da mesma série"
             self._apply_group_consensus(tagger, processed)
+            if approve_labeled:
+                self.job["phase"] = "a ensinar a IA"
+                n = self._approve_labeled()
+                self.job["message"] = f"A IA aprendeu {n} sons novos desta pasta."
             self.save()
             self.job.update(running=False, phase="parado" if stopped else "concluído", current="")
         except Exception as e:  # noqa: BLE001 — sem isto a app ficava presa em "a analisar"
@@ -501,6 +507,26 @@ class Project:
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
             self.job.update(running=False, phase="erro", current="", message=f"O teste terminou com um erro: {e}")
+
+    def _approve_labeled(self) -> int:
+        """Confirma os sons que já vinham classificados (CatID no WAV ou respostas.csv): a categoria
+        certa é a do ficheiro, não a da IA. Os outros ficam por rever."""
+        answers = avaliacao.load_answers(self.root)
+        n = 0
+        with self.lock:
+            for rid, rec in self.records.items():
+                if rec.get("missing") or rec["status"] not in ("novo", "sugerido") or rid not in self.embeddings:
+                    continue
+                truth = avaliacao.truth_of(self.abspath(rec), answers)
+                if not truth:
+                    continue
+                if rec["fields"].get("catid") not in truth:
+                    self.apply_catid(rec, truth[0])
+                rec["status"] = "revisto"
+                self._record_review(rec)
+                n += 1
+        get_knowledge().save()
+        return n
 
     def _redraft(self, rec: dict) -> None:
         """Rascunhos só da IA (ninguém mexeu, nada vinha no ficheiro) refazem-se."""

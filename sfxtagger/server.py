@@ -1,8 +1,11 @@
 """Servidor web local (só acessível neste computador)."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import string
 import sys
 import threading
@@ -82,6 +85,32 @@ def _attachment(name: str) -> dict:
     return {"Content-Disposition": f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"}
 
 
+# --- administração (treinar, testar, conhecimento, modelos) -----------------------
+# Quem cataloga não precisa destas funções. Ficam atrás de um PIN, verificado aqui no servidor
+# (não só escondido na interface). O PIN guarda-se como hash nas definições desta instalação.
+_admin_tokens: set[str] = set()
+
+
+def _pin_hash(pin: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), 200_000).hex()
+
+
+def _is_admin(request: Request) -> bool:
+    t = request.headers.get("x-admin") or request.query_params.get("t") or ""
+    return any(hmac.compare_digest(t, k) for k in _admin_tokens)
+
+
+def require_admin(request: Request) -> None:
+    if not _is_admin(request):
+        raise HTTPException(403, "Esta função está na Administração")
+
+
+def _new_token() -> str:
+    t = secrets.token_urlsafe(24)
+    _admin_tokens.add(t)
+    return t
+
+
 def project() -> Project:
     if _project is None:
         raise HTTPException(400, "Nenhuma pasta aberta")
@@ -109,7 +138,7 @@ def status():
     return {"version": __version__, "model": tagger.status,
             "project": str(_project.root) if _project else None,
             "job": dict(_project.job) if _project else None,
-            "settings": load_settings(),
+            "settings": {k: v for k, v in load_settings().items() if k != "admin_pin"},
             "setup": setup_ai.status(),
             "precision": precisao.status(),
             "standalone": STANDALONE}
@@ -122,6 +151,78 @@ def status():
 STANDALONE = os.environ.get("SFXTAGGER_APP") == "1"
 IDLE_LIMIT = 20 * 60
 _last_ping = time.time()
+
+
+class PinReq(BaseModel):
+    pin: str
+    new: str | None = None
+
+
+@app.get("/api/admin/state")
+def admin_state(request: Request):
+    return {"has_pin": bool(load_settings().get("admin_pin")), "unlocked": _is_admin(request)}
+
+
+@app.post("/api/admin/unlock")
+def admin_unlock(req: PinReq):
+    """Entrar. Na primeira vez define o PIN."""
+    s = load_settings()
+    stored = s.get("admin_pin")
+    if not stored:
+        if len(req.pin) < 4:
+            raise HTTPException(400, "O PIN tem de ter pelo menos 4 caracteres")
+        salt = secrets.token_hex(16)
+        s["admin_pin"] = {"salt": salt, "hash": _pin_hash(req.pin, salt)}
+        save_settings(s)
+    elif not hmac.compare_digest(_pin_hash(req.pin, stored["salt"]), stored["hash"]):
+        time.sleep(1)   # trava tentativas em série
+        raise HTTPException(403, "PIN errado")
+    return {"token": _new_token()}
+
+
+@app.post("/api/admin/pin")
+def admin_pin(req: PinReq, request: Request):
+    require_admin(request)
+    s = load_settings()
+    stored = s.get("admin_pin") or {}
+    if not stored or not hmac.compare_digest(_pin_hash(req.pin, stored["salt"]), stored["hash"]):
+        raise HTTPException(403, "O PIN atual está errado")
+    if not req.new or len(req.new) < 4:
+        raise HTTPException(400, "O PIN novo tem de ter pelo menos 4 caracteres")
+    salt = secrets.token_hex(16)
+    s["admin_pin"] = {"salt": salt, "hash": _pin_hash(req.new, salt)}
+    save_settings(s)
+    return {"ok": True}
+
+
+@app.post("/api/admin/lock")
+def admin_lock(request: Request):
+    t = request.headers.get("x-admin") or ""
+    _admin_tokens.discard(t)
+    return {"ok": True}
+
+
+class PathReq(BaseModel):
+    path: str
+
+
+@app.post("/api/admin/train")
+def admin_train(req: PathReq, request: Request):
+    """Abre uma pasta de sons já classificados, analisa-os e a IA aprende com todos."""
+    require_admin(request)
+    open_folder(OpenReq(path=req.path))
+    if not project().start_analysis(None, False, approve_labeled=True):
+        raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
+    return _summary()
+
+
+@app.post("/api/admin/test")
+def admin_test(req: PathReq, request: Request):
+    require_admin(request)
+    open_folder(OpenReq(path=req.path))
+    if not project().start_evaluation():
+        raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
+    return _summary()
 
 
 @app.post("/api/setup/retry")
@@ -360,8 +461,11 @@ def _author() -> str:
 
 
 @app.get("/api/knowledge")
-def knowledge_stats():
-    return {"stats": get_knowledge().stats(), "author": _author()}
+def knowledge_stats(request: Request):
+    kb = get_knowledge()
+    if not _is_admin(request):   # fora da Administração só interessa quantos sons já foram ensinados
+        return {"stats": {"total": len(kb.meta)}, "author": _author()}
+    return {"stats": kb.stats(), "author": _author()}
 
 
 @app.get("/api/knowledge/export")
@@ -377,6 +481,7 @@ def knowledge_export():
 
 @app.put("/api/knowledge/import")
 async def knowledge_import(request: Request):
+    require_admin(request)
     data = await request.body()
     if len(data) > 200 * 1024 * 1024:
         raise HTTPException(413, "Ficheiro demasiado grande")
@@ -392,13 +497,15 @@ class ForgetReq(BaseModel):
 
 
 @app.post("/api/knowledge/forget")
-def knowledge_forget(req: ForgetReq):
+def knowledge_forget(req: ForgetReq, request: Request):
+    require_admin(request)
     n = get_knowledge().forget_author(req.author)
     return {"removed": n, "stats": get_knowledge().stats()}
 
 
 @app.post("/api/resuggest")
-def resuggest():
+def resuggest(request: Request):
+    require_admin(request)
     p = project()
     if p.job["running"]:
         raise HTTPException(409, "Espera que a análise termine")
@@ -452,7 +559,8 @@ def heard(req: HeardReq):
 
 
 @app.get("/api/report.csv")
-def report_csv():
+def report_csv(request: Request):
+    require_admin(request)
     p = project()
     data = "﻿" + p.report_csv()
     name = (p.root.name or "biblioteca") + "_relatorio_IA.csv"
@@ -502,20 +610,23 @@ def analyze(req: AnalyzeReq):
 
 
 @app.post("/api/evaluate")
-def evaluate():
+def evaluate(request: Request):
+    require_admin(request)
     if not project().start_evaluation():
         raise HTTPException(409, "Já há uma análise ou gravação a decorrer")
     return {"started": True}
 
 
 @app.get("/api/evaluation")
-def evaluation():
+def evaluation(request: Request):
+    require_admin(request)
     ev = project().evaluation
     return {"summary": ev["summary"] if ev else None, "history": avaliacao.history()}
 
 
 @app.get("/api/evaluation.csv")
-def evaluation_csv():
+def evaluation_csv(request: Request):
+    require_admin(request)
     ev = project().evaluation
     if not ev:
         raise HTTPException(404, "Ainda não há nenhum teste")
@@ -597,7 +708,9 @@ class SettingsReq(BaseModel):
 
 
 @app.post("/api/settings")
-def update_settings(req: SettingsReq):
+def update_settings(req: SettingsReq, request: Request):
+    if req.max_precision is not None:
+        require_admin(request)
     s = load_settings()
     if req.dictate_translate is not None:
         s["dictate_translate"] = req.dictate_translate
@@ -606,7 +719,7 @@ def update_settings(req: SettingsReq):
     save_settings(s)
     if s.get("max_precision"):
         precisao.ensure_started()
-    return s
+    return {k: v for k, v in s.items() if k != "admin_pin"}
 
 
 class WriteReq(BaseModel):
