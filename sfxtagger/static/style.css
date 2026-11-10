@@ -55,7 +55,7 @@ body {
 button, .btn, input, textarea, select { font: inherit; color: inherit; }
 button, .btn {
   background: transparent; border: 1px solid var(--line-strong); border-radius: 0;
-  padding: 4px 11px; cursor: pointer; white-space: nowrap; text-decoration: none;
+  padding: 6px 12px; cursor: pointer; white-space: nowrap; text-decoration: none;
   display: inline-flex; align-items: center; gap: 6px;
 }
 button:hover:not(:disabled), .btn:hover { background: var(--hover); border-color: var(--muted); }
@@ -63,14 +63,21 @@ button:disabled, .btn.disabled { color: var(--muted); border-color: var(--line);
 button.primary, .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 500; }
 button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--primary); opacity: .86; }
 button.primary:disabled { background: transparent; color: var(--muted); border-color: var(--line); }
-button.small { padding: 2px 8px; font-size: 13px; }
-button.big { padding: 8px 18px; }
-button:focus-visible, a:focus-visible, select:focus-visible, .seg:focus-visible { outline: 1px solid var(--text); outline-offset: 1px; }
+button.small { padding: 4px 9px; font-size: 13px; }
+button.big { padding: 9px 18px; }
+/* ergonomia: alvo mínimo de ~32 px e foco do teclado com 2 px, sempre visível */
+button.big, .actions button, .dialog-foot button, .dz-actions button { min-height: 36px; }
+button:focus-visible, a:focus-visible, select:focus-visible, .seg:focus-visible, summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* em barras e listas com bordas encostadas, o anel fica por dentro para não ser cortado */
+.topbar button:focus-visible, .menu button:focus-visible, .menu a:focus-visible, .filters button:focus-visible,
+.actions button:focus-visible, .admin-nav button:focus-visible, .sug:focus-visible, .seg:focus-visible,
+.transport button:focus-visible, .recent button:focus-visible, .statusbar button:focus-visible { outline-offset: -2px; }
 input, textarea, select {
-  background: var(--bg); border: 1px solid var(--line); border-radius: 0; padding: 4px 7px; width: 100%;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 0; padding: 6px 8px; width: 100%;
 }
-input[type=checkbox], input[type=radio] { accent-color: var(--text); }
-input:focus, textarea:focus, select:focus { outline: none; border-color: var(--text); }
+textarea { line-height: 1.45; }
+input[type=checkbox], input[type=radio] { accent-color: var(--text); width: 16px; height: 16px; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
 input::placeholder, textarea::placeholder { color: var(--muted); }
 textarea { resize: vertical; min-height: 54px; }
 code { font-family: var(--mono); font-size: 12px; }
@@ -215,11 +222,13 @@ table.files { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .files td.c-dur, .files td.c-conf { font: 400 12px var(--mono); color: var(--muted); }
 .files td.c-cat { font: 400 12px var(--mono); }
 .files th.c-st, .files td.c-st { padding-left: 2px; padding-right: 2px; text-align: center; }
-.dot { display: inline-block; width: 7px; height: 7px; border: 1px solid var(--muted); vertical-align: 1px; }
-.dot.sugerido { border-color: var(--warn); }
-.dot.revisto { background: var(--text); border-color: var(--text); }
+/* estado = forma + cor: quadrado vazio por analisar, círculo vazio por rever, círculo cheio revisto,
+   quadrado cheio gravado, triângulo erro. Lê-se mesmo sem distinguir as cores. */
+.dot { display: inline-block; width: 9px; height: 9px; border: 1.5px solid var(--muted); vertical-align: 0; box-sizing: border-box; }
+.dot.sugerido { border-color: var(--warn); border-width: 2px; border-radius: 50%; }
+.dot.revisto { background: var(--text); border-color: var(--text); border-radius: 50%; }
 .dot.gravado { background: var(--ok); border-color: var(--ok); }
-.dot.erro { background: var(--err); border-color: var(--err); }
+.dot.erro { width: 11px; height: 10px; border: 0; background: var(--err); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .dirty-mark { display: inline-block; width: 5px; height: 5px; background: var(--warn); margin-right: 6px; vertical-align: 2px; }
 
 /* detalhe */
@@ -235,7 +244,7 @@ table.files { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .tag.err { color: var(--err); }
 .wave-wrap { position: relative; height: 128px; background: var(--display); cursor: text; overflow: hidden; }
 .wave-wrap canvas { width: 100%; height: 100%; display: block; }
-.transport { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 0; height: 30px; border-bottom: 1px solid var(--line-strong); font-size: 13px; }
+.transport { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 0; height: 36px; border-bottom: 1px solid var(--line-strong); font-size: 13px; }
 .transport #btnPlay { border: 0; border-right: 1px solid var(--line); height: 100%; padding: 0 14px; }
 .transport .time { font: 400 12px var(--mono); }
 .transport label { display: flex; align-items: center; gap: 5px; color: var(--muted); }
@@ -246,7 +255,7 @@ table.files { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .sugs { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .sug {
   position: relative; display: grid; grid-template-columns: 16px 84px minmax(0, 1fr) 40px; align-items: center; gap: 6px;
-  padding: 3px 6px 3px 8px; border: 0; border-bottom: 1px solid var(--line); text-align: left; width: 100%;
+  padding: 6px 6px 6px 8px; min-height: 32px; border: 0; border-bottom: 1px solid var(--line); text-align: left; width: 100%;
 }
 .sug.on { background: var(--sel); box-shadow: inset 2px 0 0 var(--text); }
 .sug .k { color: var(--muted); font: 400 11.5px var(--mono); }
@@ -313,7 +322,7 @@ details summary:hover { color: var(--text); }
 }
 .toast.err { background: var(--err); color: var(--accent-ink); }
 
-button.icon { padding: 5px 9px; }
+button.icon { padding: 5px 10px; min-height: 32px; min-width: 32px; justify-content: center; }
 button.icon svg { width: 11px; height: 11px; fill: currentColor; display: block; }
 .drop-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(8,7,6,.72); display: flex; align-items: flex-end; pointer-events: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .drop-overlay div { font: 500 30px/1 var(--sans); color: #e8e2d6; padding: 28px; }
@@ -364,7 +373,7 @@ button.icon svg { width: 11px; height: 11px; fill: currentColor; display: block;
 /* ditado por voz */
 .with-mic { display: flex; align-items: stretch; }
 .with-mic > input, .with-mic > textarea { flex: 1; min-width: 0; }
-button.mic { padding: 0 8px; flex: none; border-color: var(--line); border-left: 0; color: var(--muted); min-height: 28px; }
+button.mic { padding: 0 8px; flex: none; border-color: var(--line); border-left: 0; color: var(--muted); min-height: 32px; min-width: 32px; justify-content: center; }
 button.mic svg { width: 13px; height: 13px; fill: currentColor; display: block; }
 button.mic:hover:not(:disabled) { color: var(--text); }
 button.mic.rec { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); animation: pulse 1.2s ease-in-out infinite; }

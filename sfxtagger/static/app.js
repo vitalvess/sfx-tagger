@@ -186,6 +186,8 @@ function mergeRecords(list) {
 
 // ---------------------------------------------------------------- lista
 const statusOf = (r) => (r.error ? "erro" : r.status);
+// o estado lê-se pela forma do marcador e por este texto, não só pela cor
+const STATUS_TEXT = { novo: "Por analisar", sugerido: "Por rever", revisto: "Revisto", gravado: "Gravado no ficheiro", erro: "Erro" };
 
 function matches(r) {
   if (S.filter !== "all" && statusOf(r) !== S.filter) return false;
@@ -221,7 +223,7 @@ function renderList() {
     const st = statusOf(r);
     return `<tr data-id="${r.id}" class="${r.id === S.active ? "active" : ""}">
       <td class="c-chk"><input type="checkbox" ${S.selected.has(r.id) ? "checked" : ""}></td>
-      <td class="c-st"><span class="dot ${st}" title="${esc(st)}"></span></td>
+      <td class="c-st"><span class="dot ${st}" role="img" aria-label="${esc(STATUS_TEXT[st] || st)}" title="${esc(STATUS_TEXT[st] || st)}"></span></td>
       <td title="${esc(r.path)}">${r.dirty && r.status !== "gravado" ? '<span class="dirty-mark" title="Alterações por gravar"></span>' : ""}${esc(basename(r.path))}</td>
       <td class="c-dur">${fmtDur(r.tech?.duration)}</td>
       <td class="c-cat">${esc(f.catid)}</td>
@@ -343,7 +345,7 @@ function renderDetail() {
     <div class="wave-box">
       <div class="wave-wrap" id="waveWrap"><canvas id="wave"></canvas></div>
       <div class="transport">
-        <button class="small icon" id="btnPlay" title="Tocar / parar">${ICON_PLAY}</button>
+        <button class="small icon" id="btnPlay" title="Tocar / parar (Espaço)" aria-label="Tocar ou parar (Espaço)">${ICON_PLAY}</button>
         <span class="time" id="ptime">0:00</span>
         <div class="spacer"></div>
         <label><input type="checkbox" id="autoplay" ${S.autoplay ? "checked" : ""}> tocar ao escolher</label>
@@ -1112,7 +1114,7 @@ const DICT = { rec: null, stream: null, chunks: [], btn: null, timer: null };
 const DICT_TRANSLATE = { description: true, heard: true, fxname: true, keywords: true, location: false, notes: false };
 
 function micButton(field) {
-  return `<button type="button" class="mic" data-mic="${field}" title="Ditar por voz (clica, fala e clica de novo para parar)">${MIC_ICON}</button>`;
+  return `<button type="button" class="mic" data-mic="${field}" aria-label="Ditar por voz" title="Ditar por voz (clica, fala e clica de novo para parar)">${MIC_ICON}</button>`;
 }
 
 async function toggleDictation(btn) {
@@ -1132,6 +1134,7 @@ async function toggleDictation(btn) {
   DICT.rec.start();
   btn.classList.add("rec");
   btn.innerHTML = STOP_ICON;
+  btn.setAttribute("aria-label", "Parar o ditado");
   toast("A ouvir… fala e clica no botão vermelho para terminar.");
   DICT.timer = setTimeout(() => DICT.rec && DICT.rec.stop(), 90000);   // limite de 90 s
 }
@@ -1160,6 +1163,7 @@ async function finishDictation(btn) {
     clearTimeout(slow);
     btn.classList.remove("busy");
     btn.innerHTML = MIC_ICON;
+    btn.setAttribute("aria-label", "Ditar por voz");
   }
 }
 

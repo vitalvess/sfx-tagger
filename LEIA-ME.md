@@ -126,9 +126,11 @@ e cada som mostra *IA acertou*, *estava nas sugestões* ou *IA errou*.
 | / | procurar na lista |
 | Esc | sair do campo de texto |
 
-### Cores na lista
-amarelo = por rever (sugestão da IA) · azul = revisto · verde = gravado no ficheiro ·
-vermelho = erro · ponto laranja antes do nome = alterações ainda por gravar
+### Marcadores na lista
+Cada estado tem forma e cor próprias, para se ler mesmo sem distinguir as cores:
+quadrado vazio = por analisar · círculo amarelo vazio = por rever (sugestão da IA) ·
+círculo cheio = revisto · quadrado verde = gravado no ficheiro · triângulo vermelho = erro ·
+ponto laranja antes do nome = alterações ainda por gravar. Passa o rato por cima para ver o nome do estado.
 
 ---
 
