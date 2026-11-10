@@ -26,12 +26,13 @@ import wave
 from pathlib import Path
 
 BASE = ""
+ADMIN = {}   # depois do PIN: {"X-Admin": token}
 
 
 def api(method: str, path: str, body: dict | None = None, timeout: float = 30) -> dict:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(BASE + path, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", **ADMIN})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read() or b"{}")
 
@@ -137,6 +138,17 @@ def main() -> None:
     assert b"iXML" in dados and b"bext" in dados, "metadados não ficaram no ficheiro"
     print("OK  metadados gravados no WAV")
 
+    # Administração: sem PIN recusa; com PIN entra (instalação nova: este é o primeiro PIN)
+    try:
+        api("POST", "/api/evaluate", {})
+        raise SystemExit("FALHOU: testar a IA não devia funcionar sem a Administração")
+    except urllib.error.HTTPError as e:
+        assert e.code == 403, e.code
+    if api("GET", "/api/admin/state")["has_pin"]:
+        raise SystemExit("FALHOU: o teste precisa de uma instalação sem PIN (SFXTAGGER_HOME novo)")
+    ADMIN["X-Admin"] = api("POST", "/api/admin/unlock", {"pin": "1234"})["token"]
+    assert api("GET", "/api/admin/state")["unlocked"]
+    print("OK  Administração protegida por PIN")
     api("POST", "/api/evaluate", {})
     esperar("teste da IA", 300, lambda: not api("GET", "/api/job")["job"]["running"])
     ev = api("GET", "/api/evaluation")["summary"]

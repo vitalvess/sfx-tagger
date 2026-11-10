@@ -43,7 +43,7 @@
   <div class="toc">
     <a href="#ideia">1. A ideia em 30 segundos</a> ·
     <a href="#passos">2. Passo a passo</a> ·
-    <a href="#treinar">3. Treinar a IA e partilhar</a> ·
+    <a href="#treinar">3. A IA aprende contigo</a> ·
     <a href="#dentro">4. O que acontece por dentro</a> ·
     <a href="#ficheiros">5. O que é gravado nos ficheiros</a> ·
     <a href="#atalhos">6. Atalhos</a> ·
@@ -83,26 +83,24 @@
       Quando estiver certo: <b>Confirmar e seguinte</b> (Ctrl+Enter, ou Cmd+Enter no Mac).</li>
     <li><b>Gravar nos ficheiros.</b> Escreve os metadados dentro dos WAV. Opcional: renomear para o padrão
       UCS <code>CatID_FXName_CreatorID_SourceID.wav</code>. Deixa ativa a cópia de segurança.</li>
-    <li><b>Exportar.</b> Sons com metadados (ZIP), metadados em folha de cálculo (CSV) ou o relatório
-      de acertos e erros da IA.</li>
+    <li><b>Exportar.</b> Sons com metadados (ZIP), metadados em folha de cálculo (CSV), ou o que a IA aprendeu
+      contigo (<code>.sfxk</code>), para enviares a quem coordena o projeto.</li>
   </ol>
   <div class="note"><b>Ditado por voz:</b> clica no microfone ao lado de um campo, fala e clica de novo. Podes
     falar em português: a Description é traduzida para inglês automaticamente (isto muda-se em "Biblioteca").
     Na primeira vez o browser pede acesso ao microfone e a app descarrega o modelo de voz (~1 GB).</div>
 
-  <h2 id="treinar">3. Treinar a IA e partilhar</h2>
-  <p>Abre <b>Treinar a IA</b> no topo. O número no botão mostra quantos sons já ensinaste.</p>
+  <h2 id="treinar">3. A IA aprende contigo</h2>
   <div class="flow">
-    <div class="box"><b>1. Ensinar</b>"Começar a treinar" mostra os sons por rever. Confirma a categoria certa de cada um.</div>
+    <div class="box"><b>1. Confirmar</b>Cada som que confirmas (Ctrl+Enter) ensina a IA a reconhecer sons parecidos.</div>
     <div class="arrow">→</div>
-    <div class="box"><b>2. Exportar</b>Gera um ficheiro <code>.sfxk</code> com o que a tua IA aprendeu. Envia-o a quem coordena.</div>
+    <div class="box"><b>2. Enviar</b><b></b>Exportar &gt; "O que a IA aprendeu comigo" cria um <code>.sfxk</code>. Envia-o a quem coordena.</div>
     <div class="arrow">→</div>
-    <div class="box"><b>3. Importar</b>Quem recebe junta-o ao seu. A IA dele passa a saber o que a tua sabe.</div>
+    <div class="box"><b>3. Juntar</b>Quem coordena junta o de todos na Administração e devolve-vos uma IA que sabe o que todos sabem.</div>
   </div>
   <ul>
-    <li><b>O que ensina mais:</b> confirmar sons em que a IA <i>errou</i> (corrigindo-os) e ter pelo menos
-      5 sons de cada tipo de som. Por isso o modo treino mostra primeiro os sons em que a IA tem
-      <b>dúvidas</b> (ordem "Duvidosos primeiro").</li>
+    <li><b>O que ensina mais:</b> confirmar sons em que a IA <i>errou</i> (corrigindo-os). Ordena a lista por
+      <b>Duvidosos primeiro</b> para começares por esses.</li>
     <li><b>Classificador treinado:</b> a partir de 3 sons confirmados, a app treina sozinha (em menos de um
       segundo) um classificador com todos os exemplos. Com vários exemplos por tipo de som aprende o vosso
       estilo de gravação melhor do que procurar só o som mais parecido. Só intervém em sons parecidos com
@@ -110,10 +108,22 @@
     <li><b>O ficheiro .sfxk é pequeno</b> (cerca de 2 KB por som) e não tem áudio: só as "impressões digitais"
       dos sons e as categorias.</li>
     <li><b>Podes exportar sempre que quiseres.</b> Importar o mesmo ficheiro duas vezes não duplica nada.</li>
-    <li>Depois de importar, carrega em "Atualizar as sugestões dos sons por rever" para aplicar já o novo conhecimento.</li>
-    <li>Em "Estatísticas" vês quem contribuiu, a percentagem de acerto e o que a IA mais confunde. Se um
-      colega etiquetou mal, podes remover os exemplos dele.</li>
   </ul>
+
+  <h3>Administração (para quem coordena)</h3>
+  <p>No canto inferior direito, <b>Admin</b> abre a área de quem coordena, protegida por um PIN (criado na
+    primeira vez). Lá estão:</p>
+  <ul>
+    <li><b>Treinar a IA</b> com uma pasta de sons já classificados, sem ouvir nada: a IA aprende com todos.</li>
+    <li><b>Testar a IA</b> com uma pasta de sons classificados que ela nunca aprendeu: percentagem de acerto,
+      o que confunde, se a confiança é de fiar, e o histórico para ver se melhora.</li>
+    <li><b>Conhecimento:</b> juntar os <code>.sfxk</code> dos colegas, ver quem contribuiu e o que a IA mais
+      confunde, remover os exemplos de alguém, relatório da pasta aberta.</li>
+    <li><b>Modelos:</b> Precisão máxima e mudar o PIN.</li>
+  </ul>
+  <p>Em "Treinar" e "Testar", a classificação certa vem do CatID gravado nos WAV, do nome UCS do ficheiro, ou de um
+    <code>respostas.csv</code> na pasta (<code>ficheiro,catid</code>; várias respostas aceites separadas por <code>|</code>).
+    Nunca treines com a pasta que usas para testar: ela decorava as respostas.</p>
 
   <h2 id="dentro">4. O que acontece por dentro</h2>
   <h3>Ouvir</h3>
@@ -121,7 +131,7 @@
     transformado numa "impressão digital" (512 números). Cada uma das ~750 categorias UCS é descrita por várias
     frases (nome, explicação oficial, sinónimos), que também têm impressão digital. A IA sugere as categorias
     cujas frases estão mais "perto" do som. Os dois modelos votam e a opinião é combinada.</p>
-  <p><b>Precisão máxima</b> (opcional, em "Biblioteca"): junta um terceiro modelo, da Microsoft. A 1.ª sugestão
+  <p><b>Precisão máxima</b> (opcional, na Administração): junta um terceiro modelo, da Microsoft. A 1.ª sugestão
     acerta mais cerca de 3 pontos, mas descarrega cerca de 700 MB uma vez e a análise fica cerca de 20% mais lenta. Os sons já
     analisados só passam a usá-lo depois de "Analisar &gt; Reanalisar tudo"; o que editaste não se perde.</p>
   <h3>Pistas extra</h3>
@@ -154,13 +164,6 @@
     feito fica guardado e "Analisar" continua de onde ficou. <b>Remover</b> (com sons selecionados) tira-os da lista:
     numa pasta tua os ficheiros nunca são apagados, e numa lista de sons carregados são apagadas as cópias da app.
     O que a IA aprendeu com esses sons mantém-se.</p>
-
-  <h3>Testar se a IA está certa, sem ouvir nada</h3>
-  <p>Abre uma pasta de sons já classificados e carrega em <b>Analisar &gt; Testar a IA com sons já classificados</b>.
-    A IA ouve cada som, sem ver o nome do ficheiro, e a app compara com a classificação certa: percentagem de acerto,
-    o que mais confunde e se a confiança é de fiar. A classificação vem do CatID gravado nos WAV ou de um ficheiro
-    <code>respostas.csv</code> na pasta (<code>ficheiro,catid</code>; várias respostas aceites separadas por <code>|</code>).
-    O teste não altera os sons. Testa antes e depois de treinar para veres se a IA melhorou; sons que ela já aprendeu ficam de fora.</p>
 
   <h2 id="ficheiros">5. O que é gravado nos ficheiros</h2>
   <table>

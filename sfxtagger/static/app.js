@@ -46,10 +46,11 @@ const fmtDur = (s) => {
 };
 const basename = (p) => p.split("/").pop();
 
+function adminHeaders() { return S.adminToken ? { "X-Admin": S.adminToken } : {}; }
 async function api(path, opts = {}) {
   const r = await fetch(path, {
-    headers: opts.body ? { "Content-Type": "application/json" } : {},
     ...opts,
+    headers: { ...(opts.body ? { "Content-Type": "application/json" } : {}), ...adminHeaders() },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if (!r.ok) {
@@ -119,6 +120,7 @@ async function init() {
   const st = await api("/api/status");
   S.settings = st.settings;
   setupStandalone(st);
+  await restoreAdmin();
   if (st.setup && st.setup.state !== "ok") {
     $("#setupModal").dataset.shown = "1";
     waitForSetup(st);
@@ -157,8 +159,7 @@ function loadProject(p) {
   S.defaults = p.defaults || {};
   setRecords(p.records);
   $("#folderLabel").textContent = p.root;
-  $("#empty").classList.add("hidden");
-  $("#mainView").classList.remove("hidden");
+  if ($("#adminView").classList.contains("hidden")) showSounds();
   S.isUpload = !!p.is_upload;
   ["#btnAnalyze", "#btnWrite", "#btnDefaults", "#btnExport"].forEach((s) => $(s).disabled = false);
   if (p.job && p.job.running) startPolling();
@@ -786,6 +787,7 @@ function startPolling() {
       if (j.phase === "erro") toast(j.message, true);
       else if (j.phase === "parado") toast(`Parado: ${j.done} de ${j.total} sons feitos. O que já foi feito ficou guardado.`);
       else if (j.kind === "teste") showEvaluation();
+      else if (j.kind === "treino") { toast(j.message || "Treino concluído."); refreshTrainCount(); if (adminOpen()) showAdminTab("conhecimento"); }
       else toast(`Análise concluída: ${j.done} sons` + (j.errors ? `, ${j.errors} com erro` : "") + ".");
     }
   }
@@ -803,6 +805,7 @@ async function showEvaluation() {
   if (s.errors) notes.push(`${s.errors} ficheiros deram erro.`);
   if (!s.n) notes.unshift("Não há nenhum som para comparar: a IA já aprendeu todos os sons classificados desta pasta. Abre uma pasta de sons que ela nunca aprendeu, como \"Sons de teste (ESC-50)\".");
   $("#evalCsv").classList.toggle("hidden", !s.n);
+  $("#evalCsv").href = "/api/evaluation.csv?t=" + encodeURIComponent(S.adminToken || "");
   $("#evalBody").innerHTML = `
     <p class="muted">${s.n} sons de <code>${esc(s.folder)}</code>, comparados com a classificação certa. A IA só ouviu o áudio, sem ver o nome dos ficheiros.
       ${s.models} modelos, ${s.examples} exemplos aprendidos.</p>
@@ -826,16 +829,136 @@ async function showEvaluation() {
     ${history.length > 1 ? `<div class="kb-stats"><h3>Testes anteriores: a IA está a melhorar?</h3>
       <table class="kb-table"><tr><th>Data</th><th>Pasta</th><th>Sons</th><th>Exemplos</th><th>Modelos</th><th>1.ª</th><th>Nas 5</th></tr>
         ${rows([...history].reverse().slice(0, 10), (h) => `<tr><td>${esc(h.at)}</td><td>${esc(h.folder)}</td><td>${h.n}</td><td>${h.examples}</td><td>${h.models}</td><td>${h.top1}%</td><td>${h.top5}%</td></tr>`)}</table></div>` : ""}`;
-  $("#evalModal").classList.remove("hidden");
+  openAdmin("testar");
 }
+
+// ---------------------------------------------------------------- administração
+// Treinar, testar, conhecimento e modelos: para quem coordena, atrás de um PIN.
+const adminOpen = () => !$("#adminView").classList.contains("hidden");
+
+function showSounds() {
+  $("#adminView").classList.add("hidden");
+  $("#empty").classList.toggle("hidden", !!S.root);
+  $("#mainView").classList.toggle("hidden", !S.root);
+}
+
+function setAdmin(token) {
+  S.adminToken = token || null;
+  document.body.classList.toggle("admin", !!token);
+  try { token ? sessionStorage.setItem("sfxtagger.admin", token) : sessionStorage.removeItem("sfxtagger.admin"); } catch { /* sem armazenamento */ }
+}
+
+async function restoreAdmin() {
+  try { S.adminToken = sessionStorage.getItem("sfxtagger.admin"); } catch { S.adminToken = null; }
+  if (!S.adminToken) return;
+  const st = await api("/api/admin/state").catch(() => ({}));
+  setAdmin(st.unlocked ? S.adminToken : null);
+}
+
+function showAdminTab(tab) {
+  $$("#adminNav [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  $$(".admin-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== tab));
+  if (tab === "conhecimento") loadKnowledge();
+  if (tab === "definicoes") { $("#defPrecision").checked = !!S.settings.max_precision; showPrecision(); }
+  if (tab === "testar" && !$("#evalBody").innerHTML.trim()) api("/api/evaluation").then((r) => r.summary && showEvaluation()).catch(() => {});
+}
+
+async function openAdmin(tab = "treinar") {
+  if (!S.adminToken) return askPin(() => openAdmin(tab));
+  await flushSave();
+  $("#mainView").classList.add("hidden");
+  $("#empty").classList.add("hidden");
+  $("#adminView").classList.remove("hidden");
+  $("#kbMod").textContent = MOD;
+  $("#exReport").href = "/api/report.csv?t=" + encodeURIComponent(S.adminToken);
+  showAdminTab(tab);
+}
+
+async function askPin(then) {
+  const st = await api("/api/admin/state");
+  const first = !st.has_pin;
+  $("#pinText").textContent = first
+    ? "Primeira vez: cria um PIN para a Administração (pelo menos 4 caracteres). Quem catalogar neste computador não o precisa de saber."
+    : "Introduz o PIN da Administração.";
+  $("#pinInput2").classList.toggle("hidden", !first);
+  $("#pinInput").value = $("#pinInput2").value = "";
+  $("#pinWarn").textContent = "";
+  $("#pinGo").textContent = first ? "Criar PIN e entrar" : "Entrar";
+  $("#pinModal").classList.remove("hidden");
+  $("#pinInput").focus();
+  $("#pinGo").onclick = async () => {
+    const pin = $("#pinInput").value;
+    if (first && pin !== $("#pinInput2").value) { $("#pinWarn").textContent = "Os dois PIN não são iguais."; return; }
+    try {
+      const res = await api("/api/admin/unlock", { method: "POST", body: { pin } });
+      setAdmin(res.token);
+      $("#pinModal").classList.add("hidden");
+      then && then();
+    } catch (e) { $("#pinWarn").textContent = e.message; }
+  };
+}
+$("#pinInput").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  if ($("#pinInput2").classList.contains("hidden")) $("#pinGo").click(); else $("#pinInput2").focus();
+});
+$("#pinInput2").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#pinGo").click(); });
+
+$("#btnAdmin").onclick = () => openAdmin();
+$("#btnAdminView").onclick = () => (adminOpen() ? showSounds() : openAdmin());
+$("#adminBack").onclick = showSounds;
+$("#adminLock").onclick = async () => {
+  await api("/api/admin/lock", { method: "POST" }).catch(() => {});
+  setAdmin(null);
+  showSounds();
+  toast("Saíste da Administração.");
+};
+$$("#adminNav [data-tab]").forEach((b) => b.onclick = () => showAdminTab(b.dataset.tab));
+
+// escolher pastas com o navegador de pastas
+$$("[data-pick]").forEach((b) => b.onclick = () => {
+  const inp = $("#" + b.dataset.pick);
+  fm.pick = (path) => { inp.value = path; };
+  $("#folderModal").classList.remove("hidden");
+  fmLoad(inp.value.trim() || S.root || "");
+});
+
+async function adminRun(url, path, label) {
+  if (!path) return toast("Escolhe primeiro a pasta.", true);
+  try {
+    const p = await api(url, { method: "POST", body: { path } });
+    S.active = null;
+    loadProject(p);
+    startPolling();
+    toast(`${label}: ${p.records.length} sons. O progresso aparece em baixo; podes parar a qualquer momento.`);
+  } catch (e) { toast(e.message, true); }
+}
+$("#trainGo").onclick = () => adminRun("/api/admin/train", $("#trainPath").value.trim(), "A treinar com a pasta");
+$("#testGo").onclick = () => {
+  $("#evalBody").innerHTML = "";
+  adminRun("/api/admin/test", $("#testPath").value.trim(), "A testar a IA");
+};
+
+$("#pinChange").onclick = async () => {
+  try {
+    await api("/api/admin/pin", { method: "POST", body: { pin: $("#pinOld").value, new: $("#pinNew").value } });
+    $("#pinOld").value = $("#pinNew").value = "";
+    toast("PIN mudado.");
+  } catch (e) { toast(e.message, true); }
+};
+
+$("#defPrecision").onchange = async (e) => {
+  const on = e.target.checked;
+  try {
+    S.settings = await api("/api/settings", { method: "POST", body: { max_precision: on } });
+    if (on) watchPrecision(); else showPrecision();
+  } catch (err) { e.target.checked = !on; toast(err.message, true); }
+};
 
 $("#btnAnalyze").onclick = (e) => { e.stopPropagation(); $("#analyzeMenu").classList.toggle("hidden"); };
 $$("#analyzeMenu button").forEach((b) => b.onclick = () => {
   $("#analyzeMenu").classList.add("hidden");
   const mode = b.dataset.an;
-  if (mode === "test") {
-    api("/api/evaluate", { method: "POST" }).then(startPolling).catch((e) => toast(e.message, true));
-  } else if (mode === "sel") {
+  if (mode === "sel") {
     if (!S.selected.size) return toast("Não há sons selecionados.", true);
     runAnalysis([...S.selected], true);
   } else if (mode === "all") {
@@ -974,10 +1097,8 @@ $("#btnExport").onclick = (e) => { e.stopPropagation(); $("#exportMenu").classLi
 $$("#exportMenu a").forEach((a) => a.addEventListener("click", async (e) => {
   $("#exportMenu").classList.add("hidden");
   await flushSave();
-  if (a.id === "exReport" && !S.records.some((r) => r.review?.verdict)) {
-    e.preventDefault();
-    toast(`Ainda não confirmaste nenhum som. Ouve um som e carrega em "Confirmar e seguinte" (${MOD}+Enter).`, true);
-  } else if (a.id === "exZip") toast("A preparar o ZIP… o download começa daqui a pouco.");
+  if (a.id === "exZip") toast("A preparar o ZIP… o download começa daqui a pouco.");
+  else if (a.id === "exKnowledge") setTimeout(() => toast("Ficheiro descarregado. Envia-o a quem coordena o projeto (email, WhatsApp, Drive…)."), 400);
 }));
 document.addEventListener("click", () => $("#exportMenu").classList.add("hidden"));
 
@@ -1092,19 +1213,15 @@ function storeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* sem arm
 
 function updateTrainBadge(total) {
   S.trained = total;
-  $("#trainCount").textContent = total;
+}
+
+async function loadKnowledge() {
+  try { renderKnowledge((await api("/api/knowledge")).stats); } catch (e) { toast(e.message, true); }
 }
 
 function renderKnowledge(st) {
   updateTrainBadge(st.total);
-  const goal = Math.max(25, st.categories * 5);
-  $("#kbBar").style.width = Math.min(100, (st.total / goal) * 100) + "%";
-  $("#kbCount").textContent = st.total
-    ? `${st.total} sons ensinados · ${st.categories} tipos de som diferentes`
-    : "Ainda nenhum som ensinado";
-  $("#kbMod").textContent = MOD;
-  const last = storeGet("sfxtagger.lastExport");
-  $("#kbLastExport").textContent = last ? `Última exportação: ${last}` : "";
+  if (st.categories === undefined) return;      // sem a Administração só vem o total
   const pct = st.measured ? Math.round((st.right / st.measured) * 100) + "%" : "–";
   const authors = st.authors.map((a) => `<tr><td>${esc(a.author)}</td><td>${a.count}</td>
       <td>${a.medidos ? Math.round((a.certo / a.medidos) * 100) + "%" : "–"}</td>
@@ -1129,45 +1246,23 @@ function renderKnowledge(st) {
   });
 }
 
-$("#btnKnowledge").onclick = async () => {
-  await flushSave();
-  const res = await api("/api/knowledge");
-  if (!res.author) toast('Dica: preenche o teu CreatorID em "Biblioteca" para os teus exemplos ficarem com o teu nome.');
-  $("#kbResult").classList.add("hidden");
-  renderKnowledge(res.stats);
-  $("#knowledgeModal").classList.remove("hidden");
-};
-$("#kbStart").onclick = () => {
-  $("#knowledgeModal").classList.add("hidden");
-  if (!S.root) {
-    toast("Primeiro carrega os teus sons: arrasta-os para a janela ou usa \"Abrir uma pasta\".");
-    return;
-  }
-  const pending = S.records.filter((r) => r.status === "sugerido");
-  if (!pending.length) {
-    toast(S.records.some((r) => r.status === "novo")
-      ? "Primeiro analisa os sons: botão \"Analisar\"." : "Não há sons por rever nesta biblioteca. Carrega mais sons.");
-    return;
-  }
-  S.filter = "sugerido";
-  S.sort = "duvida";      // os sons em que a IA tem dúvidas são os que mais a ensinam
-  S.autoplay = true;
-  renderList();
-  select(S.view[0]);
-  toast(`Modo treino: ouve o som; se a categoria estiver certa carrega ${MOD}+Enter, se não escolhe a certa (teclas 1-5) e depois ${MOD}+Enter.`);
-};
-$("#kbExport").addEventListener("click", () => {
-  const d = new Date();
-  storeSet("sfxtagger.lastExport", d.toLocaleDateString() + " " + d.toLocaleTimeString().slice(0, 5));
-  setTimeout(() => toast("Ficheiro de conhecimento descarregado. Envia-o a quem coordena o projeto."), 400);
-});
 $("#kbImport").onclick = () => $("#kbFile").click();
+$("#kbResuggest").onclick = () => {
+  if (!S.root) return toast("Não há nenhuma pasta aberta.", true);
+  resuggestAll();
+};
+$("#exReport").addEventListener("click", (e) => {
+  if (!S.root || !S.records.some((r) => r.review?.verdict)) {
+    e.preventDefault();
+    toast("A pasta aberta ainda não tem sons confirmados.", true);
+  }
+});
 $("#kbFile").onchange = async (e) => {
   const f = e.target.files[0];
   e.target.value = "";
   if (!f) return;
   try {
-    const r = await fetch("/api/knowledge/import", { method: "PUT", body: f });
+    const r = await fetch("/api/knowledge/import", { method: "PUT", body: f, headers: adminHeaders() });
     const res = await r.json();
     if (!r.ok) throw new Error(res.detail || r.statusText);
     renderKnowledge(res.stats);
@@ -1177,8 +1272,7 @@ $("#kbFile").onchange = async (e) => {
     box.innerHTML = `Importado de <b>${esc(x.from || "colega")}</b>: ${x.new} exemplos novos` +
       (x.updated ? `, ${x.updated} atualizados` : "") + (x.same ? `, ${x.same} já existiam` : "") + "." +
       (S.root && S.records.some((r) => r.status === "sugerido")
-        ? `<br><button class="primary" id="kbResuggest">Atualizar as sugestões dos sons por rever</button>` : "");
-    $("#kbResuggest") && ($("#kbResuggest").onclick = resuggestAll);
+        ? " Carrega em \"Atualizar sugestões da pasta aberta\" para o aplicar já." : "");
   } catch (err) { toast(err.message, true); }
 };
 
@@ -1189,7 +1283,7 @@ async function resuggestAll() {
     const res = await api("/api/resuggest", { method: "POST" });
     setRecords(res.records);
     if (S.active) select(S.active, { scroll: false });
-    $("#knowledgeModal").classList.add("hidden");
+    if (btn) { btn.disabled = false; btn.textContent = "Atualizar sugestões da pasta aberta"; }
     toast(res.changed ? `${res.changed} sons mudaram de categoria sugerida com o novo conhecimento.`
       : "Sugestões atualizadas (nenhuma categoria mudou).");
   } catch (e) { toast(e.message, true); }
@@ -1220,7 +1314,14 @@ $("#btnFolder2").onclick = openFolderModal;
 $("#fmUp").onclick = () => fmLoad(fm.parent || "");
 $("#fmGo").onclick = () => fmLoad($("#fmPath").value.trim());
 $("#fmPath").onkeydown = (e) => { if (e.key === "Enter") fmLoad(e.target.value.trim()); };
-$("#fmOpen").onclick = () => { $("#folderModal").classList.add("hidden"); S.active = null; openFolder(fm.path); };
+$("#fmOpen").onclick = () => {
+  $("#folderModal").classList.add("hidden");
+  if (fm.pick) { fm.pick(fm.path); fm.pick = null; return; }   // escolher pasta para a Administração
+  S.active = null;
+  openFolder(fm.path);
+};
+$("#folderModal").addEventListener("mousedown", (e) => { if (e.target.id === "folderModal") fm.pick = null; });
+$$("#folderModal [data-close]").forEach((b) => b.addEventListener("click", () => (fm.pick = null)));
 
 // ---------------------------------------------------------------- modais
 $$(".modal:not([data-locked])").forEach((m) => {
@@ -1247,7 +1348,7 @@ async function watchPrecision() {
     await new Promise((r) => setTimeout(r, 3000));
     let p;
     try { p = (await api("/api/status")).precision; } catch { continue; }
-    if (!$("#defaultsModal").classList.contains("hidden")) showPrecision();
+    if (adminOpen()) showPrecision();
     if (p.state === "erro") { toast("Não foi possível preparar o terceiro modelo. Confirma a internet.", true); return; }
     if (p.state === "ok") {
       toast("Precisão máxima pronta. Para a aplicar aos sons já analisados: Analisar > Reanalisar tudo.");
@@ -1260,16 +1361,11 @@ $("#btnDefaults").onclick = () => {
   $("#defaultsForm").innerHTML = DEFAULT_KEYS.map((k) => `<div class="field"><label>${FIELD_LABELS[k]}</label>
     <input data-d="${k}" value="${esc(S.defaults[k])}" placeholder="${k === "creator_id" ? "ex.: as tuas iniciais" : ""}"></div>`).join("");
   $("#defTranslate").checked = S.settings.dictate_translate !== false;
-  $("#defPrecision").checked = !!S.settings.max_precision;
-  showPrecision();
   $("#defaultsModal").classList.remove("hidden");
 };
 $("#defSave").onclick = async () => {
   S.settings.dictate_translate = $("#defTranslate").checked;
-  const turnedOn = $("#defPrecision").checked && !S.settings.max_precision;
-  S.settings.max_precision = $("#defPrecision").checked;
-  api("/api/settings", { method: "POST", body: { dictate_translate: S.settings.dictate_translate, max_precision: S.settings.max_precision } })
-    .then(() => { if (turnedOn) watchPrecision(); }).catch(() => {});
+  api("/api/settings", { method: "POST", body: { dictate_translate: S.settings.dictate_translate } }).catch(() => {});
   const defaults = {};
   $$("[data-d]").forEach((i) => (defaults[i.dataset.d] = i.value.trim()));
   try {

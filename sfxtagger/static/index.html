@@ -20,7 +20,6 @@
       <button data-an="new">Ficheiros ainda não analisados</button>
       <button data-an="sel">Só os selecionados</button>
       <button data-an="all">Reanalisar tudo</button>
-      <button data-an="test">Testar a IA com sons já classificados</button>
     </div>
   </div>
   <button id="btnUpload" title="Escolher ficheiros de som do computador">Carregar sons</button>
@@ -30,11 +29,11 @@
     <button id="btnExport" disabled>Exportar</button>
     <div class="menu hidden" id="exportMenu">
       <a class="btn" id="exCsv" href="/api/export.csv">Metadados (CSV)</a>
-      <a class="btn" id="exReport" href="/api/report.csv">Relatório da IA: acertos e erros (CSV)</a>
       <a class="btn" id="exZip" href="/api/download.zip">Sons com metadados (ZIP)</a>
+      <a class="btn" id="exKnowledge" href="/api/knowledge/export" title="Ficheiro pequeno, sem áudio, para enviar a quem coordena o projeto">O que a IA aprendeu comigo (.sfxk), para enviar</a>
     </div>
   </div>
-  <button id="btnKnowledge" title="Ensinar a IA com os teus sons e partilhar o que ela aprendeu">Treinar a IA <span class="count-badge" id="trainCount">0</span></button>
+  <button id="btnAdminView" class="admin-only admin-tag" title="Treinar e testar a IA, conhecimento, modelos">Administração</button>
   <a class="btn" href="/static/ajuda.html" target="_blank" title="Como funciona a app">Ajuda</a>
   <button id="btnQuit" class="hidden" title="Fechar a app">Sair</button>
 </header>
@@ -59,6 +58,61 @@
 </div>
 
 <div id="dropOverlay" class="drop-overlay hidden"><div>Larga os sons para os carregar</div></div>
+
+<section id="adminView" class="admin-view hidden">
+  <nav class="admin-nav" id="adminNav">
+    <div class="admin-head">Administração</div>
+    <button data-tab="treinar" class="on">Treinar a IA</button>
+    <button data-tab="testar">Testar a IA</button>
+    <button data-tab="conhecimento">Conhecimento</button>
+    <button data-tab="definicoes">Modelos e PIN</button>
+    <div class="spacer"></div>
+    <button id="adminBack">Voltar aos sons</button>
+    <button id="adminLock">Sair da Administração</button>
+  </nav>
+  <div class="admin-body">
+    <div class="admin-panel" data-panel="treinar">
+      <h2>Treinar a IA com sons já classificados</h2>
+      <p>Escolhe uma pasta de sons com a categoria certa já indicada: CatID gravado nos WAV, nome UCS, ou um
+        <code>respostas.csv</code> na pasta. A app analisa-os e a IA aprende com todos. Não é preciso ouvir nada.</p>
+      <div class="pathrow"><input id="trainPath" placeholder="Caminho da pasta, ex.: D:\SFX\Treino"><button data-pick="trainPath">Procurar…</button><button class="primary" id="trainGo">Treinar</button></div>
+      <p class="note">Sons sem classificação ficam por rever. Um som já aprendido não conta duas vezes. Os exemplos
+        ficam com o CreatorID da pasta, para os poderes remover em bloco em "Conhecimento".</p>
+      <h3>Treinar com os sons do dia a dia</h3>
+      <p class="muted">Cada som que alguém confirma na lista (<span class="kbd" id="kbMod">Ctrl</span>+Enter) também ensina a IA.
+        Os colegas enviam-te esse trabalho em <code>.sfxk</code> (Exportar), e tu juntas em "Conhecimento".</p>
+    </div>
+    <div class="admin-panel hidden" data-panel="testar">
+      <h2>Testar a IA</h2>
+      <p>Escolhe uma pasta de sons já classificados que a IA <b>nunca aprendeu</b>. Ela ouve cada um sem ver o nome
+        do ficheiro e a app compara com a resposta certa. Os sons não são alterados.</p>
+      <div class="pathrow"><input id="testPath" placeholder="Caminho da pasta de teste"><button data-pick="testPath">Procurar…</button><button class="primary" id="testGo">Testar</button></div>
+      <div id="evalBody"></div>
+      <div class="kb-actions"><a class="btn hidden" id="evalCsv">Detalhe som a som (CSV)</a></div>
+    </div>
+    <div class="admin-panel hidden" data-panel="conhecimento">
+      <h2>Conhecimento da IA</h2>
+      <div id="kbStats" class="kb-stats"></div>
+      <div class="kb-actions">
+        <button id="kbImport">Importar .sfxk de um colega…</button>
+        <a class="btn" id="kbExport" href="/api/knowledge/export">Exportar tudo (.sfxk)</a>
+        <button id="kbResuggest" title="Aplica o conhecimento atual aos sons por rever da pasta aberta">Atualizar sugestões da pasta aberta</button>
+        <a class="btn" id="exReport">Relatório da pasta aberta (CSV)</a>
+      </div>
+      <input type="file" id="kbFile" accept=".sfxk" hidden>
+      <div id="kbResult" class="kb-result hidden"></div>
+    </div>
+    <div class="admin-panel hidden" data-panel="definicoes">
+      <h2>Modelos</h2>
+      <label class="check"><input type="checkbox" id="defPrecision"> <span><b>Precisão máxima:</b> juntar um terceiro modelo de IA. A 1.ª sugestão acerta
+        mais cerca de 3 pontos; descarrega cerca de 700 MB uma vez e a análise fica cerca de 20% mais lenta.</span></label>
+      <div class="note hidden" id="precisionNote"></div>
+      <h2>PIN da Administração</h2>
+      <div class="pathrow pin-row"><input type="password" id="pinOld" placeholder="PIN atual" autocomplete="off"><input type="password" id="pinNew" placeholder="PIN novo" autocomplete="off"><button id="pinChange">Mudar PIN</button></div>
+      <p class="note">Esqueceste o PIN? Apaga a linha <code>admin_pin</code> do ficheiro <code>definicoes.json</code> na pasta da app e define um novo.</p>
+    </div>
+  </div>
+</section>
 
 <main id="mainView" class="main hidden">
   <section class="list-pane">
@@ -126,8 +180,6 @@
     <div class="grid2" id="defaultsForm"></div>
     <label class="check"><input type="checkbox" id="defApply" checked> Preencher já os sons que têm estes campos vazios</label>
     <label class="check"><input type="checkbox" id="defTranslate" checked> Ditado por voz: traduzir para inglês a Description, o FXName e as Keywords (podes falar em português)</label>
-    <label class="check"><input type="checkbox" id="defPrecision"> Precisão máxima: juntar um terceiro modelo de IA (a 1.ª sugestão acerta mais ~3 pontos; descarrega cerca de 700 MB uma vez e a análise fica cerca de 20% mais lenta)</label>
-    <div class="note hidden" id="precisionNote"></div>
     <div class="dialog-foot">
       <div class="spacer"></div>
       <button data-close>Cancelar</button>
@@ -170,68 +222,18 @@
   </div>
 </div>
 
-<!-- Treinar a IA -->
-<div class="modal hidden" id="knowledgeModal">
-  <div class="dialog wide">
-    <h2>Treinar a IA</h2>
-    <p class="muted">A IA aprende com os sons que confirmas, e passa a reconhecer melhor sons parecidos.
-      O que ela aprende pode ser exportado e juntado ao de colegas. Só são partilhadas as
-      impressões digitais dos sons e as categorias, nunca o áudio.</p>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-n">1</div>
-        <div class="step-body">
-          <h3>Ensinar</h3>
-          <p>Ouve cada som e confirma a categoria certa: <b>Confirmar e seguinte</b>
-            (<span class="kbd" id="kbMod">Ctrl</span>+Enter). Se a IA errou, escolhe a certa antes de confirmar.
-            Ideal: pelo menos 5 sons de cada tipo de som.</p>
-          <div class="train-progress"><div class="bar"><div id="kbBar"></div></div><span id="kbCount"></span></div>
-          <button class="primary" id="kbStart">Começar a treinar</button>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-n">2</div>
-        <div class="step-body">
-          <h3>Exportar</h3>
-          <p>Cria um ficheiro <code>.sfxk</code> pequeno com tudo o que a tua IA aprendeu. Envia-o a quem
-            coordena o projeto (email, WhatsApp, Drive…). Podes exportar quantas vezes quiseres:
-            quem recebe só junta o que for novo.</p>
-          <a class="btn primary" id="kbExport" href="/api/knowledge/export">Exportar o que a IA aprendeu</a>
-          <span class="muted small" id="kbLastExport"></span>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-n">3</div>
-        <div class="step-body">
-          <h3>Importar</h3>
-          <p>Recebeste um <code>.sfxk</code> de um colega? Junta-o ao teu e a tua IA fica a saber o que a dele sabe.</p>
-          <button id="kbImport">Importar ficheiro de um colega…</button>
-          <input type="file" id="kbFile" accept=".sfxk" hidden>
-          <div id="kbResult" class="kb-result hidden"></div>
-        </div>
-      </div>
-    </div>
-
-    <details class="kb-details"><summary>Estatísticas: quem contribuiu e o que a IA mais confunde</summary>
-      <div id="kbStats" class="kb-stats"></div>
-    </details>
+<!-- Entrar na Administração -->
+<div class="modal hidden" id="pinModal">
+  <div class="dialog narrow">
+    <h2>Administração</h2>
+    <p class="muted" id="pinText">Introduz o PIN.</p>
+    <input type="password" id="pinInput" autocomplete="off" placeholder="PIN">
+    <input type="password" id="pinInput2" class="hidden" autocomplete="off" placeholder="Repete o PIN">
+    <p class="warn" id="pinWarn"></p>
     <div class="dialog-foot">
       <div class="spacer"></div>
-      <button data-close>Fechar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Testar a IA -->
-<div class="modal hidden" id="evalModal">
-  <div class="dialog wide">
-    <h2>Teste da IA</h2>
-    <div id="evalBody"></div>
-    <div class="dialog-foot">
-      <a class="btn" id="evalCsv" href="/api/evaluation.csv">Detalhe som a som (CSV)</a>
-      <div class="spacer"></div>
-      <button data-close>Fechar</button>
+      <button data-close>Cancelar</button>
+      <button class="primary" id="pinGo">Entrar</button>
     </div>
   </div>
 </div>
@@ -262,7 +264,7 @@
 
 <footer class="statusbar">
   <span id="statusCount"></span>
-  <span id="accuracy" class="accuracy hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
+  <span id="accuracy" class="accuracy admin-only hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
   <div id="jobBox" class="job hidden">
     <div class="job-text" id="jobText"></div>
     <div class="bar"><div id="jobBar"></div></div>
@@ -271,6 +273,7 @@
   <button id="btnRestore" class="hidden" title="Volta a pôr na lista os sons que tiraste"></button>
   <div class="spacer"></div>
   <span class="status-keys"><kbd>espaço</kbd> ouvir &nbsp; <kbd>1-5</kbd> categoria &nbsp; <kbd id="keyMod">Ctrl</kbd><kbd>+Enter</kbd> confirmar</span>
+  <button id="btnAdmin" class="admin-entry" title="Treinar e testar a IA (para quem coordena)">Admin</button>
 </footer>
 <div id="toast" class="toast hidden"></div>
 <audio id="player" preload="auto"></audio>
