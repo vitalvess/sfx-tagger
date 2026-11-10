@@ -130,7 +130,7 @@ jobs:
         run: |
           $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
           Expand-Archive $zip.FullName extraido
-          $bat = Get-ChildItem -Recurse extraido -Filter "Abrir SFX Tagger.bat" | Select-Object -First 1
+          $bat = Get-ChildItem -Recurse extraido -Filter "Abrir Earmark.bat" | Select-Object -First 1
           cmd /c "`"$($bat.FullName)`""
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
