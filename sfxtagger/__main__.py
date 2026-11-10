@@ -37,7 +37,7 @@ def _open_when_ready(port: int, url: str, timeout: float = 1800.0) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="SFX Tagger")
+    ap = argparse.ArgumentParser(description="Earmark")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
@@ -57,7 +57,7 @@ def main() -> None:
     import uvicorn
 
     from . import __version__, setup_ai
-    print(f"  SFX Tagger {__version__}", flush=True)
+    print(f"  Earmark {__version__}", flush=True)
     if not setup_ai.ai_installed():
         print("  Primeira utilização: a instalar os componentes de IA em segundo plano…")
         setup_ai.ensure_started()
@@ -71,7 +71,7 @@ def main() -> None:
 
     port = _free_port(args.port)
     url = f"http://127.0.0.1:{port}"
-    print(f"\n  SFX Tagger a correr em {url}")
+    print(f"\n  Earmark a correr em {url}")
     print("  Fecha esta janela para terminar.\n")
     if not args.no_browser:
         threading.Thread(target=_open_when_ready, args=(port, url), daemon=True).start()

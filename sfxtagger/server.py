@@ -26,7 +26,7 @@ from .project import Project
 
 STATIC = Path(__file__).parent / "static"
 
-app = FastAPI(title="SFX Tagger", version=__version__)
+app = FastAPI(title="Earmark", version=__version__)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 

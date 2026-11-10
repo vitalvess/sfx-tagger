@@ -1,4 +1,4 @@
-# SFX Tagger
+# Earmark
 
 Ferramenta local para preencher metadados de bibliotecas de efeitos sonoros.
 A IA ouve cada som e sugere **CatID UCS**, **FXName**, **Description** e **Keywords**.

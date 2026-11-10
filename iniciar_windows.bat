@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title SFX Tagger
+title Earmark
 cd /d "%~dp0"
 set "VPY=%LOCALAPPDATA%\SFXTagger\venv\Scripts\python.exe"
 if not exist "%VPY%" (

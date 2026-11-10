@@ -1,12 +1,12 @@
 @echo off
 setlocal
 chcp 65001 >nul
-title SFX Tagger - Instalacao
+title Earmark - Instalacao
 cd /d "%~dp0"
 
 echo.
 echo  ============================================
-echo    SFX Tagger - instalacao (so e preciso 1x)
+echo    Earmark - instalacao (so e preciso 1x)
 echo  ============================================
 echo.
 

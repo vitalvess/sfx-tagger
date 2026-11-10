@@ -1,10 +1,10 @@
-"""Gera 'SFX Tagger (Windows) vX.zip': um único ficheiro para abrir, instalação automática.
+"""Gera 'Earmark (Windows) vX.zip': um único ficheiro para abrir, instalação automática.
 
     python ferramentas/build_windows.py [pasta_de_saida]
 
-Conteúdo do zip (pasta "SFX Tagger"):
-    Abrir SFX Tagger.bat        <- a única coisa em que a pessoa clica
-    Desinstalar SFX Tagger.bat
+Conteúdo do zip (pasta "Earmark"):
+    Abrir Earmark.bat        <- a única coisa em que a pessoa clica
+    Desinstalar Earmark.bat
     LEIA-ME.txt
     app/                        <- código da app + ícone
 """
@@ -28,17 +28,17 @@ LEIA_ME = """SFX TAGGER PARA WINDOWS
 INSTALAR E ABRIR (nao precisas de instalar mais nada)
 -----------------------------------------------------
 1. Extrai este zip: botao direito > "Extrair tudo...".
-2. Na pasta extraida, faz duplo clique em "Abrir SFX Tagger".
+2. Na pasta extraida, faz duplo clique em "Abrir Earmark".
 
    Se aparecer "O Windows protegeu o seu PC":
    clica em "Mais informacoes" e depois em "Executar mesmo assim".
    (Aparece porque a app nao e comprada nem assinada. So na primeira vez.)
 
 3. Na primeira vez abre uma janela que prepara tudo sozinha (1 a 2 minutos,
-   precisa de internet). NAO a feches. No fim, o SFX Tagger abre no browser e
+   precisa de internet). NAO a feches. No fim, o Earmark abre no browser e
    termina a instalacao da IA (mais alguns minutos, ves o progresso no ecra).
 
-4. E criado um atalho "SFX Tagger" no Ambiente de Trabalho. Das proximas
+4. E criado um atalho "Earmark" no Ambiente de Trabalho. Das proximas
    vezes usa esse atalho. Ja podes apagar o zip e a pasta extraida.
 
 COMO USAR
@@ -60,7 +60,7 @@ Os teus ficheiros originais nunca sao alterados.
 
 DESINSTALAR
 -----------
-Duplo clique em "Desinstalar SFX Tagger" (tambem fica uma copia em
+Duplo clique em "Desinstalar Earmark" (tambem fica uma copia em
 %LOCALAPPDATA%\\SFXTagger). Exporta antes o que a IA aprendeu, se quiseres.
 
 PROBLEMAS
@@ -94,12 +94,12 @@ def _add(z: zipfile.ZipFile, name: str, data: bytes) -> None:
 
 
 def build(out_dir: Path) -> Path:
-    out = out_dir / f"SFX Tagger (Windows) v{__version__}.zip"
+    out = out_dir / f"Earmark (Windows) v{__version__}.zip"
     out.unlink(missing_ok=True)
     win = ROOT / "ferramentas" / "windows"
-    base = "SFX Tagger"
+    base = "Earmark"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for bat in ("Abrir SFX Tagger.bat", "Desinstalar SFX Tagger.bat"):
+        for bat in ("Abrir Earmark.bat", "Desinstalar Earmark.bat"):
             _add(z, f"{base}/{bat}", _crlf((win / bat).read_bytes()))
         _add(z, f"{base}/LEIA-ME.txt", _crlf(LEIA_ME.encode("utf-8")))
         _add(z, f"{base}/app/icone.ico", _ico())
