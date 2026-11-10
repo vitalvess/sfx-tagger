@@ -35,7 +35,7 @@ if /i not "%SRC%"=="%SUP%\" (
   robocopy "%SRC%app" "%SUP%\app" /MIR /NFL /NDL /NJH /NJS /NP >nul
   copy /y "%SELF%" "%SUP%\Abrir Earmark.bat" >nul
   if exist "%SRC%Desinstalar Earmark.bat" copy /y "%SRC%Desinstalar Earmark.bat" "%SUP%\" >nul
-  rem atualizacao de uma versao com o nome antigo (SFX Tagger): troca os ficheiros e o atalho
+  rem atualizacao de uma versao com o nome antigo SFX Tagger: troca os ficheiros e o atalho
   del /q "%SUP%\Abrir SFX Tagger.bat" "%SUP%\Desinstalar SFX Tagger.bat" 2>nul
   if not defined SFXTAGGER_NO_SHORTCUT if exist "%STAMP%" call :atalho
 )
