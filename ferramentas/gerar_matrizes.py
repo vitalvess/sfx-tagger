@@ -12,8 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from sfxtagger import paths  # noqa: E402
-from sfxtagger.ai import DATA_DIR, Tagger  # noqa: E402
+from earmark import paths  # noqa: E402
+from earmark.ai import DATA_DIR, Tagger  # noqa: E402
 
 for old in DATA_DIR.glob("cat_*.npy"):
     old.unlink()

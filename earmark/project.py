@@ -1,4 +1,4 @@
-"""Uma biblioteca = uma pasta de sons. O estado fica em <pasta>/.sfxtagger/."""
+"""Uma biblioteca = uma pasta de sons. O estado fica em <pasta>/.earmark/."""
 from __future__ import annotations
 
 import csv
@@ -19,7 +19,8 @@ from . import audio, avaliacao, classifier, metadata, precisao, ucs
 from .ai import GROUP_BETA, get_tagger, name_words
 from .knowledge import example_id, get_knowledge
 
-STATE_DIR = ".sfxtagger"
+STATE_DIR = ".earmark"
+OLD_STATE_DIR = ".sfxtagger"     # nome usado até à v0.8.1 (SFX Tagger)
 AUDIO_EXT = {".wav"}
 
 FIELD_KEYS = ["catid", "category", "subcategory", "category_full", "fxname", "description",
@@ -43,6 +44,7 @@ class Project:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.state_dir = self.root / STATE_DIR
+        self._migrate_state_dir()
         self.lock = threading.RLock()
         self.records: dict[str, dict] = {}
         self.defaults: dict[str, str] = {k: "" for k in DEFAULT_KEYS}
@@ -81,6 +83,16 @@ class Project:
     def wave_file(self) -> Path:
         return self.state_dir / "formas.npz"
 
+    def _migrate_state_dir(self) -> None:
+        """Bibliotecas abertas com o nome antigo: .sfxtagger passa a .earmark, sem perder nada."""
+        old = self.root / OLD_STATE_DIR
+        if self.state_dir.exists() or not old.is_dir():
+            return
+        try:
+            os.replace(old, self.state_dir)
+        except OSError:
+            self.state_dir = old   # pasta só de leitura ou em uso: continua a usar a antiga
+
     def _load(self) -> None:
         if self.state_file.exists():
             try:
@@ -88,6 +100,12 @@ class Project:
                 self.records = data.get("records", {})
                 self.defaults.update(data.get("defaults", {}))
                 self.ignored = set(data.get("ignored", []))
+                # cópias de segurança registadas com o nome antigo da pasta de estado
+                if self.state_dir.name != OLD_STATE_DIR:
+                    for rec in self.records.values():
+                        b = rec.get("backup")
+                        if isinstance(b, str) and b.startswith(OLD_STATE_DIR + "/"):
+                            rec["backup"] = self.state_dir.name + b[len(OLD_STATE_DIR):]
             except (ValueError, OSError):
                 # ficheiro danificado (ex.: falha de energia): guarda-o à parte e recomeça
                 bad = self.state_file.with_name(f"projeto.danificado-{int(_now())}.json")
@@ -947,7 +965,7 @@ class Project:
         staged = []
         for rec, fields in items:
             p = self.abspath(rec)
-            tmp = p.with_name(f".sfxtagger-rename-{rec['id']}{p.suffix.lower()}")
+            tmp = p.with_name(f".earmark-rename-{rec['id']}{p.suffix.lower()}")
             try:
                 os.rename(p, tmp)
                 rec.setdefault("orig_path", rec["path"])

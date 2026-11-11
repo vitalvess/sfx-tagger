@@ -1,7 +1,8 @@
 #!/bin/bash
 # Earmark — arranque da app de Mac.
 # Na primeira vez instala tudo sozinho (Python, bibliotecas e IA) — sem Terminal.
-# Tudo fica em ~/Library/Application Support/SFXTagger (apagar essa pasta desinstala).
+# Tudo fica em ~/Library/Application Support/Earmark (apagar essa pasta desinstala).
+# Instalações feitas com o nome antigo continuam em .../SFXTagger: o Python instalado guarda esse caminho.
 
 # Nos Macs com chip M, o macOS lança apps feitas com scripts em emulação Intel (Rosetta):
 # tudo ficava muito lento (minutos a arrancar) e instalava a versão Intel da IA.
@@ -13,7 +14,9 @@ fi
 # antigas, em Contents/MacOS
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ "$(basename "$HERE")" = "MacOS" ]; then RES="$(cd "$HERE/../Resources" && pwd)"; else RES="$HERE"; fi
-SUP="$HOME/Library/Application Support/SFXTagger"
+SUP="$HOME/Library/Application Support/Earmark"
+OLD="$HOME/Library/Application Support/SFXTagger"
+[ ! -d "$SUP" ] && [ -d "$OLD" ] && SUP="$OLD"
 LOG="$SUP/registo.log"
 UVDIR="$SUP/uv"
 UV="$UVDIR/uv"
@@ -94,8 +97,8 @@ if [ ! -x "$VPY" ] || [ ! -f "$STAMP" ]; then
   touch "$STAMP"
 fi
 
-export SFXTAGGER_APP=1
-export SFXTAGGER_UV="$UV"
+export EARMARK_APP=1
+export EARMARK_UV="$UV"
 export PYTHONDONTWRITEBYTECODE=1
 echo "$(date +%T) A abrir a app…"
 "$VPY" "$RES/app/run.py" || erro "A app fechou com um erro inesperado."

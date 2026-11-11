@@ -1,4 +1,4 @@
-"""Arranque: python -m sfxtagger [--port 8765] [--no-browser]"""
+"""Arranque: python -m earmark [--port 8765] [--no-browser]"""
 from __future__ import annotations
 
 import argparse
@@ -75,7 +75,7 @@ def main() -> None:
     print("  Fecha esta janela para terminar.\n")
     if not args.no_browser:
         threading.Thread(target=_open_when_ready, args=(port, url), daemon=True).start()
-    uvicorn.run("sfxtagger.server:app", host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run("earmark.server:app", host="127.0.0.1", port=port, log_level="warning")
 
 
 if __name__ == "__main__":

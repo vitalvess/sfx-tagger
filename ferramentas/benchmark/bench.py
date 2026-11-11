@@ -20,8 +20,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sfxtagger import audio, ucs  # noqa: E402
-from sfxtagger.ai import MODEL_NAME, Tagger  # noqa: E402
+from earmark import audio, ucs  # noqa: E402
+from earmark.ai import MODEL_NAME, Tagger  # noqa: E402
 
 HERE = Path(__file__).parent
 MAPPING = {k: v for k, v in json.loads((HERE / "esc50_ucs.json").read_text()).items()

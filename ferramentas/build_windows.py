@@ -20,10 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 from build_mac_app import _icon  # noqa: E402
-from sfxtagger import __version__  # noqa: E402
+from earmark import __version__  # noqa: E402
 
-LEIA_ME = """SFX TAGGER PARA WINDOWS
-=======================
+LEIA_ME = """EARMARK PARA WINDOWS
+====================
 
 INSTALAR E ABRIR (nao precisas de instalar mais nada)
 -----------------------------------------------------
@@ -55,18 +55,18 @@ COMO USAR
 - Para fechar: botao "Sair" no canto superior direito (tambem fecha sozinha
   20 minutos depois de fechares o browser).
 
-Os sons arrastados ficam numa copia em Documentos\\SFX Tagger.
+Os sons arrastados ficam numa copia em Documentos\\Earmark.
 Os teus ficheiros originais nunca sao alterados.
 
 DESINSTALAR
 -----------
 Duplo clique em "Desinstalar Earmark" (tambem fica uma copia em
-%LOCALAPPDATA%\\SFXTagger). Exporta antes o que a IA aprendeu, se quiseres.
+%LOCALAPPDATA%\\Earmark). Exporta antes o que a IA aprendeu, se quiseres.
 
 PROBLEMAS
 ---------
-Se algo falhar, envia o ficheiro %LOCALAPPDATA%\\SFXTagger\\registo.log
-a quem te deu a app.
+Se algo falhar, envia o ficheiro %LOCALAPPDATA%\\Earmark\\registo.log
+a quem te deu a app (nas instalacoes antigas a pasta chama-se SFXTagger).
 """
 
 
@@ -103,7 +103,7 @@ def build(out_dir: Path) -> Path:
             _add(z, f"{base}/{bat}", _crlf((win / bat).read_bytes()))
         _add(z, f"{base}/LEIA-ME.txt", _crlf(LEIA_ME.encode("utf-8")))
         _add(z, f"{base}/app/icone.ico", _ico())
-        files = [ROOT / "run.py"] + sorted((ROOT / "sfxtagger").rglob("*"))
+        files = [ROOT / "run.py"] + sorted((ROOT / "earmark").rglob("*"))
         for f in files:
             if f.is_dir() or "__pycache__" in f.parts or f.suffix == ".pyc":
                 continue

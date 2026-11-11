@@ -22,8 +22,8 @@ from bench import MAPPING, Data, metrics  # noqa: E402
 from exp_memory import pick, with_memory  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sfxtagger import ai, classifier  # noqa: E402
-from sfxtagger.ai import HELPER_MODEL, Tagger  # noqa: E402
+from earmark import ai, classifier  # noqa: E402
+from earmark.ai import HELPER_MODEL, Tagger  # noqa: E402
 
 
 def softmax(z):

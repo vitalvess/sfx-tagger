@@ -4,17 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Earmark</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23e8e2d6' d='M1 0h10l4 4v12H1z'/%3E%3Cpath fill='%238f897d' d='M11 0l4 4h-4z'/%3E%3Cpath fill='%23ff5a36' d='M7 4h2v9H7z'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/static/marca/favicon.svg">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand" aria-label="Earmark">
-    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path class="bm-page" d="M0 0h44l20 20v44H0z"/><path class="bm-fold" d="M44 0l20 20H44z"/><g class="bm-bars"><rect x="8" y="27" width="4" height="10"/><rect x="16" y="20" width="4" height="24"/><rect x="24" y="23" width="4" height="18"/><rect x="40" y="24" width="4" height="16"/><rect x="48" y="28" width="4" height="8"/></g><rect class="bm-cursor" x="32" y="14" width="4" height="36"/></svg>
-    <span>Earmark</span>
+  <div class="brand">
+    <picture>
+      <source srcset="/static/marca/earmark-logotipo-claro.svg" media="(prefers-color-scheme: light)">
+      <img src="/static/marca/earmark-logotipo.svg" alt="Earmark" width="100" height="28">
+    </picture>
   </div>
-  <button id="btnFolder" title="Abrir pasta de sons">Abrir pasta</button>
-  <div class="menu-wrap">
+  <button id="btnFolder" class="needs-project" title="Abrir outra pasta de sons">Abrir pasta</button>
+  <div class="needs-project menu-wrap">
     <button id="btnAnalyze" disabled aria-haspopup="true">Analisar</button>
     <div class="menu hidden" id="analyzeMenu">
       <button data-an="new">Ficheiros ainda não analisados</button>
@@ -22,10 +24,10 @@
       <button data-an="all">Reanalisar tudo</button>
     </div>
   </div>
-  <div class="folder-info" title="Pasta aberta"><span id="folderLabel"></span><span id="folderCount"></span></div>
+  <div class="needs-project folder-info" title="Pasta aberta"><span id="folderLabel"></span><span id="folderCount"></span></div>
   <div class="spacer"></div>
   <span id="accuracy" class="accuracy admin-only hidden" title="Dos sons que confirmaste, quantas vezes a 1.ª sugestão da IA estava certa"></span>
-  <div class="menu-wrap">
+  <div class="needs-project menu-wrap">
     <button id="btnExport" disabled aria-haspopup="true">Exportar</button>
     <div class="menu hidden" id="exportMenu">
       <a class="btn" id="exCsv" href="/api/export.csv">Metadados (CSV)</a>
@@ -33,7 +35,7 @@
       <a class="btn" id="exKnowledge" href="/api/knowledge/export" title="Ficheiro pequeno, sem áudio, para enviar a quem coordena o projeto">O que a IA aprendeu comigo (.sfxk), para enviar</a>
     </div>
   </div>
-  <button id="btnWrite" class="primary" disabled>Gravar nos ficheiros</button>
+  <button id="btnWrite" class="primary needs-project" disabled>Gravar nos ficheiros</button>
   <div class="menu-wrap">
     <button id="btnMore" class="icon-more" aria-haspopup="true" aria-label="Mais opções" title="Mais opções"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="7" width="2.5" height="2.5"/><rect x="6.75" y="7" width="2.5" height="2.5"/><rect x="11.5" y="7" width="2.5" height="2.5"/></svg></button>
     <div class="menu hidden" id="moreMenu">
@@ -50,20 +52,19 @@
 <input type="file" id="fileInput" multiple accept=".wav,.wave,.bwf,.aif,.aiff,.flac,.ogg,.mp3,audio/*" hidden>
 
 <div id="empty" class="empty">
-  <div class="dropzone" id="dropzone">
-    <div class="dz-playhead"></div>
-    <div class="dz-body">
-      <div class="dz-title">Larga aqui os teus sons</div>
-      <div class="dz-formats">WAV AIFF FLAC OGG MP3</div>
+  <div class="start">
+    <section class="dropzone" id="dropzone" aria-labelledby="startTitle">
+      <p class="label">Começar</p>
+      <h1 id="startTitle">Abre uma pasta de efeitos sonoros</h1>
+      <p class="start-lead">A IA ouve cada som e sugere CatID UCS, FXName, Description e Keywords.
+        Revês com o teclado e gravas tudo dentro dos ficheiros. Os sons não saem do teu computador.</p>
       <div class="dz-actions">
-        <button class="primary" id="btnUpload2">Escolher ficheiros</button>
-        <button id="btnFolder2">Abrir pasta</button>
+        <button class="primary" id="btnFolder2">Abrir pasta</button>
+        <button id="btnUpload2">Escolher ficheiros</button>
       </div>
-    </div>
-  </div>
-  <div class="empty-foot">
-    <p>A IA propõe CatID UCS, FXName, Description e Keywords. Tu ouves, corriges e gravas tudo dentro dos ficheiros.</p>
-    <div id="recentBox" class="recent"></div>
+      <p class="dz-hint">Também podes arrastar ficheiros para esta janela · WAV, AIFF, FLAC, OGG, MP3</p>
+    </section>
+    <section id="recentBox" class="recent" aria-label="Pastas recentes"></section>
   </div>
 </div>
 
@@ -223,7 +224,7 @@
       <label><input type="radio" name="wscope" value="sel"> Sons <b>selecionados</b> (<span id="wcSel">0</span>)</label>
       <label><input type="radio" name="wscope" value="all"> <b>Todos</b> os sons analisados (<span id="wcAll">0</span>)</label>
     </div>
-    <label class="check"><input type="checkbox" id="wBackup" checked> Guardar cópia do original antes de alterar (em <code>.sfxtagger/backup</code>)</label>
+    <label class="check"><input type="checkbox" id="wBackup" checked> Guardar cópia do original antes de alterar (em <code>.earmark/backup</code>)</label>
     <label class="check"><input type="checkbox" id="wRename"> Renomear ficheiros para o padrão UCS <code class="muted">CatID_FXName_CreatorID_SourceID.wav</code></label>
     <p class="warn" id="wWarn"></p>
     <div class="dialog-foot">

@@ -36,13 +36,13 @@ jobs:
           pip install numpy
           mkdir -p dist montagem
           # executável nativo universal (chip M + Intel)
-          clang -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -O2             -o montagem/sfxtagger ferramentas/mac/lancador.c
-          python ferramentas/build_mac_app.py montagem --lancador montagem/sfxtagger
+          clang -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -O2             -o montagem/earmark ferramentas/mac/lancador.c
+          python ferramentas/build_mac_app.py montagem --lancador montagem/earmark
           # assinatura ad hoc: sem ela o macOS 15 não mostra "Abrir na mesma"
           ditto -x -k montagem/*.zip montagem/app
           codesign --force --deep --sign - "montagem/app/Earmark.app"
           codesign --verify --deep --strict --verbose=2 "montagem/app/Earmark.app"
-          lipo -info "montagem/app/Earmark.app/Contents/MacOS/sfxtagger"
+          lipo -info "montagem/app/Earmark.app/Contents/MacOS/earmark"
           NOME="$(basename montagem/*.zip)"
           ditto -c -k --norsrc montagem/app "dist/$NOME"
 
@@ -83,7 +83,7 @@ jobs:
 
       - name: Confirmar que corre nativo (sem emulação Intel nos Macs com chip M)
         run: |
-          LOG="$HOME/Library/Application Support/SFXTagger/registo.log"
+          LOG="$HOME/Library/Application Support/Earmark/registo.log"
           if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
             grep -q "arquitetura: arm64" "$LOG" && grep -q "· arm64 ·" "$LOG" || { echo "A app correu em emulação Intel"; exit 1; }
           fi
@@ -94,7 +94,7 @@ jobs:
         run: |
           mkdir -p resultado
           screencapture -x resultado/ecra.png || true
-          SUP="$HOME/Library/Application Support/SFXTagger"
+          SUP="$HOME/Library/Application Support/Earmark"
           cp "$SUP"/*.log resultado/ 2>/dev/null || true
           ls -la "$SUP" || true
           for f in "$SUP"/registo*.log; do echo "===== $f"; tail -60 "$f"; done || true
@@ -125,8 +125,8 @@ jobs:
       - name: Extrair e abrir como um colega
         shell: pwsh
         env:
-          SFXTAGGER_NO_BROWSER: "1"
-          SFXTAGGER_NO_SHORTCUT: "1"
+          EARMARK_NO_BROWSER: "1"
+          EARMARK_NO_SHORTCUT: "1"
         run: |
           $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
           Expand-Archive $zip.FullName extraido
@@ -148,7 +148,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force resultado | Out-Null
-          Copy-Item "$env:LOCALAPPDATA\SFXTagger\*.log" resultado -ErrorAction SilentlyContinue
+          Copy-Item "$env:LOCALAPPDATA\Earmark\*.log" resultado -ErrorAction SilentlyContinue
           Get-ChildItem resultado | ForEach-Object { "===== $_"; Get-Content $_ -Tail 60 }
 
       - uses: actions/upload-artifact@v4

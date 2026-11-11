@@ -30,8 +30,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from sfxtagger import ai, classifier  # noqa: E402
-from sfxtagger.ai import Tagger  # noqa: E402
+from earmark import ai, classifier  # noqa: E402
+from earmark.ai import Tagger  # noqa: E402
 
 
 def load_sfxk(path: Path) -> list[dict]:
@@ -48,7 +48,7 @@ def load_sfxk(path: Path) -> list[dict]:
 
 
 def load_local() -> list[dict]:
-    from sfxtagger.knowledge import get_knowledge
+    from earmark.knowledge import get_knowledge
     kb = get_knowledge()
     return [dict(kb.meta[i], id=i, x1=kb.emb[i], x2=kb.emb2.get(i)) for i in kb.meta]
 
@@ -146,7 +146,7 @@ def evaluate(items: list[dict], tagger: Tagger) -> None:
 
 
 def evaluate_folder(folder: Path, answers: Path, tagger: Tagger) -> None:
-    from sfxtagger.project import Project
+    from earmark.project import Project
     truth = {}
     with open(answers, newline="", encoding="utf-8-sig") as f:
         for row in csv.reader(f):

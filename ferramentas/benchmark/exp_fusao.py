@@ -35,8 +35,8 @@ def soft(z):
 
 def textos(esc: Path) -> None:
     from msclap import CLAP
-    from sfxtagger import ucs
-    from sfxtagger.ai import category_texts
+    from earmark import ucs
+    from earmark.ai import category_texts
     clap = CLAP(version="2023", use_cuda=False)
     texts = [category_texts(c) for c in ucs.load_ucs()]
     out = {}
@@ -50,8 +50,8 @@ def textos(esc: Path) -> None:
 class Dados:
     def __init__(self, esc: Path, variante: str | None = None):
         from bench import Data
-        from sfxtagger import precisao
-        from sfxtagger.ai import HELPER_MODEL, Tagger
+        from earmark import precisao
+        from earmark.ai import HELPER_MODEL, Tagger
         self.d = Data(esc)
         d2 = Data(esc, HELPER_MODEL)
         t = Tagger()
@@ -113,7 +113,7 @@ def frases(esc: Path) -> None:
 
 def fusao(esc: Path, variante: str | None) -> None:
     from bench import metrics
-    from sfxtagger.ai import family_rescore
+    from earmark.ai import family_rescore
     d = Dados(esc, variante)
     afinado = esc.parent / "cat_msclap_afinado.npy"
     if afinado.exists():

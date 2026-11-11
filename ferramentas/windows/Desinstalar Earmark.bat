@@ -1,13 +1,14 @@
 @echo off
 setlocal EnableExtensions
 title Desinstalar Earmark
-if not defined SFXTAGGER_HOME set "SFXTAGGER_HOME=%LOCALAPPDATA%\SFXTagger"
-if not defined SFXTAGGER_PORT set "SFXTAGGER_PORT=8765"
-set "TMPCOPY=%TEMP%\sfxtagger-desinstalar.bat"
+if not defined EARMARK_HOME if not exist "%LOCALAPPDATA%\Earmark" if exist "%LOCALAPPDATA%\SFXTagger\" set "EARMARK_HOME=%LOCALAPPDATA%\SFXTagger"
+if not defined EARMARK_HOME set "EARMARK_HOME=%LOCALAPPDATA%\Earmark"
+if not defined EARMARK_PORT set "EARMARK_PORT=8765"
+set "TMPCOPY=%TEMP%\earmark-desinstalar.bat"
 
 rem Se este ficheiro esta dentro da pasta que vai ser apagada, corre a partir de
 rem uma copia temporaria (o Windows nao gosta que um .bat apague a sua propria pasta).
-if /i "%~dp0"=="%SFXTAGGER_HOME%\" (
+if /i "%~dp0"=="%EARMARK_HOME%\" (
   copy /y "%~f0" "%TMPCOPY%" >nul
   "%TMPCOPY%"
 )
@@ -23,11 +24,11 @@ choice /c SN /m "  Desinstalar agora"
 if errorlevel 2 goto :fim
 
 rem fecha a app se estiver aberta
-powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Method Post -TimeoutSec 3 'http://127.0.0.1:%SFXTAGGER_PORT%/api/quit' | Out-Null } catch { }" >nul 2>&1
+powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Method Post -TimeoutSec 3 'http://127.0.0.1:%EARMARK_PORT%/api/quit' | Out-Null } catch { }" >nul 2>&1
 ping -n 3 127.0.0.1 >nul
 powershell -NoProfile -Command "foreach ($n in 'Earmark.lnk','SFX Tagger.lnk') { Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path ([Environment]::GetFolderPath('Desktop')) $n) }" >nul 2>&1
 cd /d "%TEMP%"
-rmdir /s /q "%SFXTAGGER_HOME%" 2>nul
+rmdir /s /q "%EARMARK_HOME%" 2>nul
 echo.
 echo   Earmark desinstalado.
 ping -n 5 127.0.0.1 >nul

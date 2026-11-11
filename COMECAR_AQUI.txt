@@ -1,5 +1,5 @@
-SFX TAGGER - COMECAR AQUI
-=========================
+EARMARK - COMECAR AQUI
+======================
 
 Ferramenta que ouve os teus efeitos sonoros e sugere os metadados UCS
 (CatID, FXName, Description, Keywords). Tudo corre no teu computador:
@@ -13,7 +13,7 @@ WINDOWS
 1. Instala o Python 3.12:  https://www.python.org/downloads/
    IMPORTANTE: na primeira janela do instalador marca
    "Add python.exe to PATH".
-2. Extrai este zip para uma pasta (ex.: Documentos\SFXTagger).
+2. Extrai este zip para uma pasta (ex.: Documentos\Earmark).
    Nao corras os ficheiros de dentro do zip sem o extrair primeiro.
 3. Duplo clique em  instalar_windows.bat
    (so na primeira vez; demora alguns minutos).
@@ -27,7 +27,7 @@ MAC
 ---
 1. Instala o Python 3.12:  https://www.python.org/downloads/
    (descarrega o "macOS 64-bit universal2 installer" e segue os passos)
-2. Duplo clique no zip para o extrair. Move a pasta SFXTagger para
+2. Duplo clique no zip para o extrair. Move a pasta Earmark para
    Documentos ou Aplicacoes (nao a deixes nas Transferencias).
 3. Abre a app Terminal (Cmd+Espaco, escreve "Terminal", Enter).
    Escreve  bash  seguido de um espaco, ARRASTA o ficheiro
@@ -66,7 +66,7 @@ Cada som confirmado ensina a IA. No botao "Conhecimento":
 - envia-o aos colegas; eles fazem "Importar conhecimento de um colega"
   e depois "Atualizar as sugestoes dos sons por rever".
 
-Os sons arrastados ficam numa copia em Documentos\SFX Tagger;
+Os sons arrastados ficam numa copia em Documentos\Earmark;
 os teus ficheiros originais nunca sao alterados.
 
 Guia completo: ficheiro LEIA-ME.md (abre com o Bloco de Notas).

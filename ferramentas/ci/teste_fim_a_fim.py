@@ -103,7 +103,7 @@ def main() -> None:
         return s["state"] == "ok"
     esperar("instalação da IA", a.ia, ia_pronta)
 
-    pasta = Path(tempfile.mkdtemp(prefix="sfxtagger-teste-"))
+    pasta = Path(tempfile.mkdtemp(prefix="earmark-teste-"))
     for tipo in ("tom", "impacto", "ruido"):
         som(pasta / f"teste_{tipo}.wav", tipo)
     # uma série de takes (consenso entre takes) e uma gravação longa (análise por partes)
@@ -146,7 +146,7 @@ def main() -> None:
     except urllib.error.HTTPError as e:
         assert e.code == 403, e.code
     if api("GET", "/api/admin/state")["has_pin"]:
-        raise SystemExit("FALHOU: o teste precisa de uma instalação sem PIN (SFXTAGGER_HOME novo)")
+        raise SystemExit("FALHOU: o teste precisa de uma instalação sem PIN (EARMARK_HOME novo)")
     ADMIN["X-Admin"] = api("POST", "/api/admin/unlock", {"pin": "1234"})["token"]
     assert api("GET", "/api/admin/state")["unlocked"]
     print("OK  Administração protegida por PIN")

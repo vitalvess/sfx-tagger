@@ -285,7 +285,7 @@ def write_metadata(path: str | Path, fields: dict, backup_dir: Path | None = Non
     devolve o caminho dessa cópia."""
     path = Path(path)
     backup = None
-    tmp = path.with_name(path.name + ".sfxtagger-tmp")
+    tmp = path.with_name(path.name + ".earmark-tmp")
     with open(path, "rb") as f:
         chunks = _scan_chunks(f)
         if not any(c.id == b"data" for c in chunks):

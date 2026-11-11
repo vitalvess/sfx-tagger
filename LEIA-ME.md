@@ -16,7 +16,7 @@ Precisas de cerca de **3 GB livres** e de internet durante a instalação.
 ### Windows
 1. Instala o **Python 3.12** em <https://www.python.org/downloads/>.
    Durante a instalação, marca a opção **"Add python.exe to PATH"**.
-2. Abre a pasta `SFXTagger` e faz duplo clique em **`instalar_windows.bat`**.
+2. Abre a pasta `Earmark` e faz duplo clique em **`instalar_windows.bat`**.
 3. Espera até aparecer *"Instalação concluída"*. Na primeira vez demora alguns minutos,
    porque descarrega os modelos de IA (cerca de 1,4 GB).
 
@@ -46,7 +46,7 @@ enquanto trabalhas e fecha-a quando terminares.
 1. **Carregar os sons**, de uma de duas formas:
    - **Arrasta os ficheiros para a janela** (ou usa **Carregar sons**). Aceita WAV, AIFF,
      FLAC, OGG e MP3, e os que não são WAV são convertidos para WAV 24-bit. Os sons ficam numa
-     cópia em `Documentos/SFX Tagger/` e os teus originais não são tocados. A análise começa sozinha.
+     cópia em `Documentos/Earmark/` e os teus originais não são tocados. A análise começa sozinha.
    - **Abrir pasta**: trabalha diretamente numa pasta que já tenhas. As subpastas também são incluídas.
 2. **Biblioteca**: preenche uma vez os campos comuns a toda a biblioteca:
    Library, Designer, CreatorID (as tuas iniciais), SourceID (nome do projeto), Microfone…
@@ -99,11 +99,13 @@ Preenche o teu **CreatorID** em "Biblioteca" para os teus exemplos ficarem com o
 Medido em 800 gravações reais etiquetadas (benchmark ESC-50 em categorias UCS, sem pistas
 no nome do ficheiro):
 - a 1.ª sugestão está certa **77%** das vezes, e a categoria certa está entre as 5 sugestões **91%** das vezes;
-- com sons já confirmados na memória, sons parecidos chegam a **83%** com 1 exemplo por tipo de som,
-  e a **91%** com 5 exemplos.
+- com sons já confirmados, sons de tipos que a IA já conhece chegam a **90%** com 1 exemplo por tipo
+  e a **94%** com 5; depois de aprender 10 sons por tipo, o ESC-50 sobe para **92,8%** (97,8% nas 5).
+- em sons mais variados (FSD50K, 9.657 sons do Freesound) a 1.ª sugestão acerta **70,6%** depois do treino,
+  e a certa está nas 5 sugestões em **90,3%**. Em gravações de arquivo antigas (BBC) desce para 33%.
 
 Nomes de ficheiro descritivos (`porta_madeira_ranger.wav`) ajudam ainda mais. Os detalhes estão em
-`ferramentas/benchmark`.
+`ferramentas/benchmark/relatorios`.
 
 ### Precisão da IA
 Cada vez que confirmas um som, a app compara a tua categoria final com a 1.ª sugestão
@@ -144,8 +146,8 @@ ponto laranja antes do nome = alterações ainda por gravar. Passa o rato por ci
 
 - O **áudio nunca é alterado**: só os blocos de metadados são reescritos (foi testado bit a bit).
 - Com a opção de cópia de segurança ativa, o original de cada ficheiro fica guardado em
-  `<pasta>/.sfxtagger/backup/` na primeira vez que a app lhe mexe.
-- O progresso (sugestões, edições, estado) fica em `<pasta>/.sfxtagger/projeto.json`.
+  `<pasta>/.earmark/backup/` na primeira vez que a app lhe mexe.
+- O progresso (sugestões, edições, estado) fica em `<pasta>/.earmark/projeto.json`.
   Podes fechar a app e continuar mais tarde.
 
 ## Dicas para melhores sugestões

@@ -29,7 +29,8 @@ if not defined PYEXE (
 )
 echo  A usar: %PYEXE%
 
-set "VENV=%LOCALAPPDATA%\SFXTagger\venv"
+set "VENV=%LOCALAPPDATA%\Earmark\venv"
+if not exist "%VENV%\Scripts\python.exe" if exist "%LOCALAPPDATA%\SFXTagger\venv\Scripts\python.exe" set "VENV=%LOCALAPPDATA%\SFXTagger\venv"
 if not exist "%VENV%\Scripts\python.exe" (
   echo  A criar ambiente Python em %VENV% ...
   %PYEXE% -m venv "%VENV%" || goto :erro
@@ -45,7 +46,7 @@ echo  [2/3] A instalar as restantes bibliotecas...
 "%VPY%" -m pip install -r requirements.txt -q || goto :erro
 
 echo  [3/3] A descarregar o modelo de IA (cerca de 1,4 GB, so na primeira vez)...
-"%VPY%" -c "import sys; sys.path.insert(0, '.'); from sfxtagger.ai import get_tagger; get_tagger().ensure_loaded(); print('  Modelo pronto.')" || goto :erro
+"%VPY%" -c "import sys; sys.path.insert(0, '.'); from earmark.ai import get_tagger; get_tagger().ensure_loaded(); print('  Modelo pronto.')" || goto :erro
 
 echo.
 echo  Instalacao concluida! Para abrir a app usa o ficheiro "iniciar_windows.bat".

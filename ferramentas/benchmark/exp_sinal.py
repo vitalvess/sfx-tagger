@@ -18,8 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from bench import Data, load_meta, metrics  # noqa: E402
 
-from sfxtagger import audio, precisao  # noqa: E402
-from sfxtagger.ai import HELPER_MODEL, Tagger  # noqa: E402
+from earmark import audio, precisao  # noqa: E402
+from earmark.ai import HELPER_MODEL, Tagger  # noqa: E402
 
 def trim_silence(x: np.ndarray, sr: int = audio.ANALYSIS_SR, below_db: float = 45.0,
                  margin_s: float = 0.05) -> np.ndarray:

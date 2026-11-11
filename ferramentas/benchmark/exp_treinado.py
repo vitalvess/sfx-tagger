@@ -19,7 +19,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 from exp_otimizacao import Setup, metrics  # noqa: E402
 
-from sfxtagger import classifier  # noqa: E402
+from earmark import classifier  # noqa: E402
 
 
 def softmax(z):

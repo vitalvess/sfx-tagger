@@ -37,7 +37,7 @@ def _packages() -> list[list[str]]:
 
 
 def _installer() -> list[str]:
-    uv = os.environ.get("SFXTAGGER_UV") or shutil.which("uv")
+    uv = (os.environ.get("EARMARK_UV") or os.environ.get("SFXTAGGER_UV")) or shutil.which("uv")
     if uv and os.path.exists(uv):
         return [uv, "pip", "install", "--python", sys.executable]
     return [sys.executable, "-m", "pip", "install", "--disable-pip-version-check"]

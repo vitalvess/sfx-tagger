@@ -4,12 +4,14 @@ title Earmark
 rem ------------------------------------------------------------------------
 rem  Earmark - arrancador para Windows.
 rem  Na primeira vez instala tudo sozinho (Python, bibliotecas e IA) e cria
-rem  um atalho no Ambiente de Trabalho. Tudo fica em %LOCALAPPDATA%\SFXTagger.
+rem  um atalho no Ambiente de Trabalho. Tudo fica em %LOCALAPPDATA%\Earmark
+rem  (instalacoes feitas com o nome antigo continuam em %LOCALAPPDATA%\SFXTagger).
 rem ------------------------------------------------------------------------
 
-if not defined SFXTAGGER_HOME set "SFXTAGGER_HOME=%LOCALAPPDATA%\SFXTagger"
-if not defined SFXTAGGER_PORT set "SFXTAGGER_PORT=8765"
-set "SUP=%SFXTAGGER_HOME%"
+if not defined EARMARK_HOME if not exist "%LOCALAPPDATA%\Earmark" if exist "%LOCALAPPDATA%\SFXTagger\" set "EARMARK_HOME=%LOCALAPPDATA%\SFXTagger"
+if not defined EARMARK_HOME set "EARMARK_HOME=%LOCALAPPDATA%\Earmark"
+if not defined EARMARK_PORT set "EARMARK_PORT=8765"
+set "SUP=%EARMARK_HOME%"
 set "SELF=%~f0"
 set "SRC=%~dp0"
 set "UVDIR=%SUP%\uv"
@@ -17,7 +19,7 @@ set "UV=%SUP%\uv\uv.exe"
 set "VENV=%SUP%\venv-app"
 set "STAMP=%SUP%\venv-app\.base-instalada"
 set "LOG=%SUP%\registo.log"
-set "URL=http://127.0.0.1:%SFXTAGGER_PORT%"
+set "URL=http://127.0.0.1:%EARMARK_PORT%"
 set "UV_PYTHON_INSTALL_DIR=%SUP%\python"
 set "UV_CACHE_DIR=%SUP%\uv-cache"
 set "HF_HOME=%SUP%\modelo"
@@ -37,7 +39,7 @@ if /i not "%SRC%"=="%SUP%\" (
   if exist "%SRC%Desinstalar Earmark.bat" copy /y "%SRC%Desinstalar Earmark.bat" "%SUP%\" >nul
   rem atualizacao de uma versao com o nome antigo SFX Tagger: troca os ficheiros e o atalho
   del /q "%SUP%\Abrir SFX Tagger.bat" "%SUP%\Desinstalar SFX Tagger.bat" 2>nul
-  if not defined SFXTAGGER_NO_SHORTCUT if exist "%STAMP%" call :atalho
+  if not defined EARMARK_NO_SHORTCUT if exist "%STAMP%" call :atalho
 )
 
 if exist "%STAMP%" goto :abrir
@@ -54,7 +56,7 @@ echo ==== %date% %time% instalacao ==== >>"%LOG%"
 
 if exist "%UV%" goto :python
 echo   [1/3] A descarregar o instalador...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol='Tls12'; $z=Join-Path $env:TEMP 'sfxtagger-uv.zip'; Invoke-WebRequest -UseBasicParsing 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip' -OutFile $z; Expand-Archive -Force $z '%UVDIR%'; Remove-Item $z; $u=Get-ChildItem -Recurse -Filter uv.exe '%UVDIR%' | Select-Object -First 1; if ($u.FullName -ne '%UV%') { Copy-Item $u.FullName '%UV%' }" >>"%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol='Tls12'; $z=Join-Path $env:TEMP 'earmark-uv.zip'; Invoke-WebRequest -UseBasicParsing 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip' -OutFile $z; Expand-Archive -Force $z '%UVDIR%'; Remove-Item $z; $u=Get-ChildItem -Recurse -Filter uv.exe '%UVDIR%' | Select-Object -First 1; if ($u.FullName -ne '%UV%') { Copy-Item $u.FullName '%UV%' }" >>"%LOG%" 2>&1
 if not exist "%UV%" goto :erro
 
 :python
@@ -64,19 +66,19 @@ if exist "%VENV%" rmdir /s /q "%VENV%"
 echo   [3/3] A instalar as bibliotecas...
 "%UV%" pip install --python "%VENV%\Scripts\python.exe" fastapi uvicorn numpy scipy soundfile pyloudnorm >>"%LOG%" 2>&1 || goto :erro
 echo ok>"%STAMP%"
-if not defined SFXTAGGER_NO_SHORTCUT call :atalho
+if not defined EARMARK_NO_SHORTCUT call :atalho
 echo.
 echo   Pronto! A abrir o Earmark no browser...
 echo   Da proxima vez usa o atalho "Earmark" no Ambiente de Trabalho.
 ping -n 5 127.0.0.1 >nul
 
 :abrir
-set "SFXTAGGER_APP=1"
-set "SFXTAGGER_UV=%UV%"
+set "EARMARK_APP=1"
+set "EARMARK_UV=%UV%"
 set "PYTHONDONTWRITEBYTECODE=1"
 set "EXTRA="
-if defined SFXTAGGER_NO_BROWSER set "EXTRA=--no-browser"
-start "" "%VENV%\Scripts\pythonw.exe" "%SUP%\app\run.py" --port %SFXTAGGER_PORT% %EXTRA%
+if defined EARMARK_NO_BROWSER set "EXTRA=--no-browser"
+start "" "%VENV%\Scripts\pythonw.exe" "%SUP%\app\run.py" --port %EARMARK_PORT% %EXTRA%
 exit /b 0
 
 :atalho

@@ -19,7 +19,7 @@ from bench import MAPPING, Data, metrics  # noqa: E402
 from exp_prompts import norm, template_matrices  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sfxtagger.ai import MODEL_NAME, NON_SOUND_CATEGORIES, Tagger  # noqa: E402
+from earmark.ai import MODEL_NAME, NON_SOUND_CATEGORIES, Tagger  # noqa: E402
 
 KEYS = ["nome", "explic", "sinon_lista", "sinon_cada", "sfx", "familia"]
 

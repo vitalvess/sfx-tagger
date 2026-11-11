@@ -25,7 +25,7 @@ import numpy as np
 
 from . import __version__, classifier, paths
 
-FORMAT = "sfxtagger-conhecimento"
+FORMAT = "sfxtagger-conhecimento"   # identificador interno dos .sfxk: fica igual para as versões antigas os lerem
 FORMAT_VERSION = 1
 MIN_SIM = 0.65        # abaixo disto um exemplo não conta como "parecido" (= ai.MEMORY)
 

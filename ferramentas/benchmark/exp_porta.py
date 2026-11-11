@@ -20,7 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 from exp_otimizacao import Setup, metrics, pick  # noqa: E402
 
-from sfxtagger import classifier  # noqa: E402
+from earmark import classifier  # noqa: E402
 
 SCENARIOS = (("metade", None), ("1 tipo", 1), ("3 tipos", 3))
 

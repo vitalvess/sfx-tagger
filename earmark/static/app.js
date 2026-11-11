@@ -9,7 +9,7 @@ const S = {
   activeFull: null,     // registo completo (com forma de onda)
   selected: new Set(),
   filter: "all",
-  sort: storeGet("sfxtagger.sort") === "duvida" ? "duvida" : "nome",  // ou menor confiança primeiro
+  sort: (storeGet("earmark.sort") ?? storeGet("sfxtagger.sort")) === "duvida" ? "duvida" : "nome",  // ou menor confiança primeiro
   search: "",
   ucs: [],
   ucsById: new Map(),
@@ -138,10 +138,13 @@ async function init() {
 
 function renderRecent() {
   const box = $("#recentBox");
-  const rec = S.settings.recent || [];
+  // pastas temporárias (carregamentos, testes) não interessam a ninguém
+  const TEMP = /[\\/](AppData[\\/]Local[\\/]Temp|tmp|temp)[\\/]|(sfxtagger|earmark)-teste/i;
+  const rec = (S.settings.recent || []).filter((p) => !TEMP.test(p)).slice(0, 6);
   if (!rec.length) { box.innerHTML = ""; return; }
-  box.innerHTML = "<h3>Pastas recentes</h3>" +
-    rec.map((p) => `<button data-path="${esc(p)}">${esc(p)}</button>`).join("");
+  const split = (p) => { const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")); return [p.slice(i + 1) || p, p.slice(0, i)]; };
+  box.innerHTML = '<h2 class="label">Pastas recentes</h2>' +
+    rec.map((p) => { const [name, dir] = split(p); return `<button data-path="${esc(p)}" title="${esc(p)}"><span class="r-name">${esc(name)}</span><span class="r-dir">${esc(dir)}</span></button>`; }).join("");
   $$("button", box).forEach((b) => b.onclick = () => openFolder(b.dataset.path));
 }
 
@@ -157,6 +160,7 @@ async function openFolder(path) {
 
 function loadProject(p) {
   S.root = p.root;
+  document.body.classList.add("has-project");
   S.defaults = p.defaults || {};
   setRecords(p.records);
   $("#folderLabel").textContent = p.is_upload ? "Sons carregados" : p.root;
@@ -288,7 +292,7 @@ $("#selAll").onchange = (e) => {
 };
 $("#search").oninput = (e) => { S.search = e.target.value.trim(); renderList(); };
 $$("#filters button").forEach((b) => b.onclick = () => { S.filter = b.dataset.f; renderList(); });
-$("#sortSel").onchange = (e) => { S.sort = e.target.value; storeSet("sfxtagger.sort", S.sort); renderList(); };
+$("#sortSel").onchange = (e) => { S.sort = e.target.value; storeSet("earmark.sort", S.sort); renderList(); };
 
 // ---------------------------------------------------------------- painel de detalhe
 async function select(id, { scroll = true } = {}) {
@@ -424,12 +428,12 @@ function renderDetail() {
     </div>
 
     <div class="actions">
-      <span class="hint"><kbd>↑↓</kbd> som · <kbd>Espaço</kbd> tocar · <kbd>1–5</kbd> categoria · <kbd>?</kbd> atalhos</span>
+      <span class="hint">↑↓ som · Espaço tocar · 1–5 categoria · ? atalhos</span>
       <div class="spacer"></div>
       ${r.group ? '<button id="btnGroup" title="Seleciona os outros takes da mesma série">Selecionar série</button>' : ""}
       ${sug ? '<button id="btnSimilar" title="Seleciona sons parecidos (pela IA)">Selecionar semelhantes</button>' : ""}
       <button id="btnReanalyze" title="Voltar a analisar este som">Reanalisar</button>
-      <button class="primary" id="btnApprove" title="Confirma a categoria e os campos deste som" aria-keyshortcuts="${MOD === "Cmd" ? "Meta" : "Control"}+Enter">Confirmar e seguinte <kbd>${MOD_GLYPH} ↵</kbd></button>
+      <button class="primary" id="btnApprove" title="Confirma a categoria e os campos deste som" aria-keyshortcuts="${MOD === "Cmd" ? "Meta" : "Control"}+Enter">Confirmar e seguinte <span class="key">${MOD === "Cmd" ? "⌘↵" : "Ctrl ↵"}</span></button>
     </div>`;
 
   renderKeywords(kwSuggest);
@@ -908,11 +912,11 @@ function showSounds() {
 function setAdmin(token) {
   S.adminToken = token || null;
   document.body.classList.toggle("admin", !!token);
-  try { token ? sessionStorage.setItem("sfxtagger.admin", token) : sessionStorage.removeItem("sfxtagger.admin"); } catch { /* sem armazenamento */ }
+  try { token ? sessionStorage.setItem("earmark.admin", token) : sessionStorage.removeItem("earmark.admin"); } catch { /* sem armazenamento */ }
 }
 
 async function restoreAdmin() {
-  try { S.adminToken = sessionStorage.getItem("sfxtagger.admin"); } catch { S.adminToken = null; }
+  try { S.adminToken = sessionStorage.getItem("earmark.admin"); } catch { S.adminToken = null; }
   if (!S.adminToken) return;
   const st = await api("/api/admin/state").catch(() => ({}));
   setAdmin(st.unlocked ? S.adminToken : null);

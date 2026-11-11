@@ -15,7 +15,7 @@ from exp_memory import KEYS, softmax  # noqa: E402
 from exp_prompts import norm, template_matrices  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sfxtagger.ai import NON_SOUND_CATEGORIES, Tagger  # noqa: E402
+from earmark.ai import NON_SOUND_CATEGORIES, Tagger  # noqa: E402
 
 MODELS = ["laion/larger_clap_general", "laion/clap-htsat-unfused"]
 

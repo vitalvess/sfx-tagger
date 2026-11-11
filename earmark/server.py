@@ -148,7 +148,7 @@ def status():
 
 # Lançada pela app de Mac (sem janela de consola): o servidor fecha-se sozinho
 # quando o browser deixa de o usar, e a interface mostra um botão "Sair".
-STANDALONE = os.environ.get("SFXTAGGER_APP") == "1"
+STANDALONE = paths.env("APP") == "1"
 IDLE_LIMIT = 20 * 60
 _last_ping = time.time()
 
@@ -373,7 +373,7 @@ class NewBatchReq(BaseModel):
 
 @app.post("/api/upload/new")
 def upload_new(req: NewBatchReq):
-    """Cria uma pasta nova em Documentos/SFX Tagger e abre-a."""
+    """Cria uma pasta nova em Documentos/Earmark e abre-a."""
     global _project
     if _project and _project.job["running"]:
         raise HTTPException(409, "Espera que a análise atual termine")
@@ -474,7 +474,7 @@ def knowledge_export():
     from datetime import datetime
     author = _author()
     data = get_knowledge().export_bytes(author)
-    tag = re.sub(r"[^A-Za-z0-9_-]+", "", author) or "sfxtagger"
+    tag = re.sub(r"[^A-Za-z0-9_-]+", "", author) or "earmark"
     name = f"conhecimento_{tag}_{datetime.now().strftime('%Y-%m-%d')}.sfxk"
     return Response(data, media_type="application/octet-stream", headers=_attachment(name))
 

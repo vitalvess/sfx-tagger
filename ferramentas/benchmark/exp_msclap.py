@@ -31,8 +31,8 @@ def norm(m):
 def embed(esc: Path) -> None:
     import csv
     from msclap import CLAP
-    from sfxtagger import ucs
-    from sfxtagger.ai import CATEGORY_TEXT_WEIGHTS, MODEL_NAME, category_texts
+    from earmark import ucs
+    from earmark.ai import CATEGORY_TEXT_WEIGHTS, MODEL_NAME, category_texts
 
     clap = CLAP(version="2023", use_cuda=False)
     cats = ucs.load_ucs()
@@ -63,7 +63,7 @@ def embed(esc: Path) -> None:
 
 def evaluate(esc: Path) -> None:
     from bench import Data, metrics
-    from sfxtagger.ai import HELPER_MODEL, Tagger
+    from earmark.ai import HELPER_MODEL, Tagger
 
     d1, d2 = Data(esc), Data(esc, HELPER_MODEL)
     t = Tagger()
@@ -98,8 +98,8 @@ def evaluate(esc: Path) -> None:
 
 def app(esc: Path) -> None:
     from bench import Data, metrics
-    from sfxtagger import audio, precisao
-    from sfxtagger.ai import HELPER_MODEL, Tagger
+    from earmark import audio, precisao
+    from earmark.ai import HELPER_MODEL, Tagger
 
     d1, d2 = Data(esc), Data(esc, HELPER_MODEL)
     t = Tagger()

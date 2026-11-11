@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from preparar_fsd50k import Dividido, entradas  # noqa: E402
 
-from sfxtagger import audio, avaliacao, classifier, ucs  # noqa: E402
-from sfxtagger.ai import Tagger  # noqa: E402
+from earmark import audio, avaliacao, classifier, ucs  # noqa: E402
+from earmark.ai import Tagger  # noqa: E402
 
 # genéricas demais para ensinar uma só categoria (ex.: Speech seria sempre "voz de homem")
 NO_TRAIN = {"Speech", "Singing", "Conversation", "Crowd", "Aircraft", "Bird", "Car", "Motor_vehicle_(road)"}
@@ -97,7 +97,7 @@ def evaluate(base: Path, teste: Path, sfxk: Path) -> None:
     idx = {c.catid: i for i, c in enumerate(cats)}
     fam = np.array([t.family_index[i] for i in range(len(cats))])
 
-    st = teste / ".sfxtagger"
+    st = teste / ".earmark" if (teste / ".earmark").is_dir() else teste / ".sfxtagger"
     rec = json.loads((st / "projeto.json").read_text(encoding="utf-8"))["records"]
     answers = avaliacao.load_answers(teste)
     with np.load(st / "embeddings.npz") as a, np.load(st / "embeddings2.npz") as b:

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SFX Tagger — instalação para macOS (só é preciso uma vez)
+# Earmark — instalação para macOS (só é preciso uma vez)
 cd "$(dirname "$0")" || exit 1
 
 falhou() {
@@ -12,7 +12,7 @@ falhou() {
 
 echo
 echo "  ============================================"
-echo "    SFX Tagger - instalação (só é preciso 1x)"
+echo "    Earmark - instalação (só é preciso 1x)"
 echo "  ============================================"
 echo
 
@@ -47,7 +47,9 @@ if [ -z "$PYEXE" ]; then
 fi
 echo "  A usar: $PYEXE ($($PYEXE --version 2>&1))$([ "$INTEL" = 1 ] && echo ' · Mac Intel')"
 
-VENV="$HOME/Library/Application Support/SFXTagger/venv"
+VENV="$HOME/Library/Application Support/Earmark/venv"
+OLDV="$HOME/Library/Application Support/SFXTagger/venv"
+[ ! -x "$VENV/bin/python" ] && [ -x "$OLDV/bin/python" ] && VENV="$OLDV"
 if [ ! -x "$VENV/bin/python" ]; then
   echo "  A criar ambiente Python…"
   mkdir -p "$(dirname "$VENV")"
@@ -73,7 +75,7 @@ else
 fi
 
 echo "  [3/3] A descarregar o modelo de IA (cerca de 1,4 GB, só na primeira vez)…"
-"$VPY" -c "import sys; sys.path.insert(0, '.'); from sfxtagger.ai import get_tagger; get_tagger().ensure_loaded(); print('  Modelo pronto.')" || falhou
+"$VPY" -c "import sys; sys.path.insert(0, '.'); from earmark.ai import get_tagger; get_tagger().ensure_loaded(); print('  Modelo pronto.')" || falhou
 
 # permite abrir o iniciar_mac.command com duplo clique (ficheiros vindos de um zip
 # ficam "em quarentena" pelo macOS)

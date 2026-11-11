@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from bench import Data, embed_all  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sfxtagger.ai import HELPER_MODEL, Tagger  # noqa: E402
+from earmark.ai import HELPER_MODEL, Tagger  # noqa: E402
 
 esc = Path(sys.argv[1])
 data = Data(esc)

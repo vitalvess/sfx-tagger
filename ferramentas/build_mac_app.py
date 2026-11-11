@@ -23,10 +23,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from sfxtagger import __version__  # noqa: E402
+from earmark import __version__  # noqa: E402
 
 APP = "Earmark.app"
-EXE = "sfxtagger"
+EXE = "earmark"
 
 INFO_PLIST = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -34,7 +34,7 @@ INFO_PLIST = f"""<?xml version="1.0" encoding="UTF-8"?>
 <dict>
   <key>CFBundleName</key><string>Earmark</string>
   <key>CFBundleDisplayName</key><string>Earmark</string>
-  <key>CFBundleIdentifier</key><string>local.sfxtagger.app</string>
+  <key>CFBundleIdentifier</key><string>local.earmark.app</string>
   <key>CFBundleVersion</key><string>{__version__}</string>
   <key>CFBundleShortVersionString</key><string>{__version__}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -47,8 +47,8 @@ INFO_PLIST = f"""<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 """
 
-LEIA_ME = """SFX TAGGER PARA MAC
-===================
+LEIA_ME = """EARMARK PARA MAC
+================
 
 1. Arrasta "Earmark" para a pasta Aplicacoes. Se ja tinhas a versao antiga,
    chamada "SFX Tagger", apaga-a: o que a IA aprendeu e o teu trabalho mantem-se.
@@ -95,7 +95,7 @@ COMO USAR
 - Para fechar a app: botao "Sair" (canto superior direito). Tambem fecha
   sozinha 20 minutos depois de fechares o separador do browser.
 
-Os sons arrastados ficam numa copia em Documentos/SFX Tagger.
+Os sons arrastados ficam numa copia em Documentos/Earmark.
 Os teus ficheiros originais nunca sao alterados.
 
 PROBLEMAS
@@ -103,7 +103,8 @@ PROBLEMAS
 - Se algo correr mal aparece uma janela com o botao "Abrir registo".
   Envia esse ficheiro a quem te deu a app.
 - Para desinstalar: apaga a app e a pasta
-  ~/Library/Application Support/SFXTagger
+  ~/Library/Application Support/Earmark
+  (nas instalacoes antigas: ~/Library/Application Support/SFXTagger)
 """
 
 
@@ -180,7 +181,7 @@ def _add_dir(z: zipfile.ZipFile, name: str) -> None:
 def build(out_dir: Path, lancador: Path | None = None) -> Path:
     out = out_dir / f"Earmark (Mac) v{__version__}.zip"
     out.unlink(missing_ok=True)
-    launcher = (ROOT / "ferramentas" / "mac_launcher.sh").read_bytes().replace(b"\r\n", b"\n")
+    launcher = (ROOT / "ferramentas" / "mac" / "arrancador.sh").read_bytes().replace(b"\r\n", b"\n")
     c = f"{APP}/Contents"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for d in (APP, c, f"{c}/MacOS", f"{c}/Resources", f"{c}/Resources/app"):
@@ -189,13 +190,13 @@ def build(out_dir: Path, lancador: Path | None = None) -> Path:
         _add(z, f"{c}/PkgInfo", b"APPL????")
         if lancador:
             _add(z, f"{c}/MacOS/{EXE}", lancador.read_bytes(), 0o755)
-            _add(z, f"{c}/Resources/sfxtagger.sh", launcher, 0o755)
+            _add(z, f"{c}/Resources/earmark.sh", launcher, 0o755)
         else:
             _add(z, f"{c}/MacOS/{EXE}", launcher, 0o755)
         _add(z, f"{c}/Resources/AppIcon.icns", _icns())
         _add(z, f"{c}/Resources/a-preparar.html",
-             (ROOT / "ferramentas" / "a-preparar.html").read_bytes())
-        files = [ROOT / "run.py"] + sorted((ROOT / "sfxtagger").rglob("*"))
+             (ROOT / "ferramentas" / "mac" / "a-preparar.html").read_bytes())
+        files = [ROOT / "run.py"] + sorted((ROOT / "earmark").rglob("*"))
         for f in files:
             if f.is_dir() or "__pycache__" in f.parts or f.suffix == ".pyc":
                 continue

@@ -138,8 +138,8 @@ def confidence_level(value: float) -> str:
 
 def _pick_device(torch) -> str:
     """Aceleração quando existe: placa gráfica NVIDIA (cuda) ou chip M dos Mac (mps).
-    SFXTAGGER_DEVICE=cpu força o processador (para comparar ou se algo correr mal)."""
-    forced = os.environ.get("SFXTAGGER_DEVICE")
+    EARMARK_DEVICE=cpu força o processador (para comparar ou se algo correr mal)."""
+    forced = paths.env("DEVICE")
     if forced:
         return forced
     try:
