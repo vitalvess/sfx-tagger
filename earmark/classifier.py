@@ -23,7 +23,8 @@ import numpy as np
 # parâmetros afinados (exp_otimizacao.py treino)
 TRAIN = {"temperature": 10.0, "use_helper": True}
 BLEND = {"weight": 0.6, "gate_at": 0.55, "gate_width": 0.06}
-ADAPT = {"quantile": 0.75, "margin": 0.35}  # limiar >= sons típicos da biblioteca + margem
+ADAPT = {"quantile": 0.75, "margin": 0.35,   # limiar >= sons típicos da biblioteca + margem
+         "ceiling": 0.65}                    # ... mas nunca acima disto (ver adapt())
 MIN_EXAMPLES = 3          # abaixo disto fica só a memória kNN
 
 
@@ -72,16 +73,25 @@ def train(X1: np.ndarray, X2: np.ndarray | None, y: np.ndarray, temperature: flo
 
 
 def adapt(model: Model, background: np.ndarray, gate_at: float = 0.55, quantile: float = 0.75,
-          margin: float = 0.35) -> Model:
+          margin: float = 0.35, ceiling: float | None = None) -> Model:
     """Ajusta a "porta" de cada classe à biblioteca. background: features() dos sons da
     biblioteca (ou de todos os exemplos). Um som só passa se estiver bem mais perto do
     retrato da classe (margem) do que um som típico da biblioteca (quantil 75%). Não se usa
     um quantil alto: em bibliotecas pequenas seria o próprio som confirmado e o seu take
-    vizinho (FOLDER04: com 0,95 o take gémeo de um som confirmado nunca era ajudado)."""
+    vizinho (FOLDER04: com 0,95 o take gémeo de um som confirmado nunca era ajudado).
+
+    ceiling: teto do limiar. Sem ele, numa pasta só de sons parecidos de uma categoria que a IA
+    conhece bem (ex.: só ambientes de cidade) o limiar subia acima dos próprios sons e o
+    classificador calava-se onde mais ajudava. Medido em 6 pastas de teste (2026-11, fundo = a
+    pasta, como na app): 1.ª sugestão média 49,5 -> 58,4 (TUT 2018 10,5 -> 33,8); sons de
+    categorias desconhecidas 1,2 -> 2,9 pontos abaixo de sem classificador."""
     if background is None or len(background) < 5:
         return model
     typical = np.quantile(background @ model.protos.T, quantile, axis=0)
-    return Model(**{**model.__dict__, "thresholds": np.maximum(gate_at, typical + margin).astype(np.float32)})
+    thr = typical + margin
+    if ceiling is not None:
+        thr = np.minimum(thr, ceiling)
+    return Model(**{**model.__dict__, "thresholds": np.maximum(gate_at, thr).astype(np.float32)})
 
 
 def blend(P: np.ndarray, model: Model, X1: np.ndarray, X2: np.ndarray | None = None,
