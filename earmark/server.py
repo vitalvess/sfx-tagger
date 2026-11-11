@@ -263,6 +263,7 @@ def _idle_watchdog() -> None:
 
 if STANDALONE:
     threading.Thread(target=_idle_watchdog, daemon=True).start()
+get_knowledge().warm()
 
 
 @app.get("/api/ucs")

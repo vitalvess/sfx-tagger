@@ -614,7 +614,7 @@ class Project:
         """O classificador da memória, com o limiar de cada categoria acima do que é típico
         NESTA biblioteca (gravações da mesma sala/gravador parecem-se todas)."""
         kb = get_knowledge()
-        base = kb.classifier()
+        base = kb.classifier(wait=fresh)   # fresh: testes e recalcular esperam pelo treino novo
         if base is None:
             return None
         with self.lock:   # a análise pode estar a acrescentar sons noutra thread

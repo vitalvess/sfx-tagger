@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 
 # parâmetros afinados (exp_otimizacao.py treino)
-TRAIN = {"temperature": 10.0, "use_helper": True}
+TRAIN = {"temperature": 10.0, "use_helper": True, "head": "linear"}
 BLEND = {"weight": 0.6, "gate_at": 0.55, "gate_width": 0.06}
 ADAPT = {"quantile": 0.75, "margin": 0.35,   # limiar >= sons típicos da biblioteca + margem
          "ceiling": 0.65}                    # ... mas nunca acima disto (ver adapt())
@@ -48,17 +48,69 @@ class Model:
     temperature: float
     use_helper: bool
     thresholds: np.ndarray | None = None   # limiar da "porta" de cada classe (adapt())
+    b: np.ndarray | None = None            # cabeça linear: termo constante (None = cossenos)
+
+    def probs(self, F: np.ndarray) -> np.ndarray:
+        """Probabilidades do classificador nas suas classes (F = features())."""
+        logits = F @ self.W.T + self.b if self.b is not None else self.temperature * F @ self.W.T
+        logits = logits - logits.max(1, keepdims=True)
+        q = np.exp(logits)
+        return q / q.sum(1, keepdims=True)
+
+
+def _linear_head(F: np.ndarray, yi: np.ndarray, K: int, epochs: int = 60, batch: int = 256,
+                 lr: float = 2e-3, wd: float = 1e-3, smooth: float = 0.05, noise: float = 0.02,
+                 seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Regressão softmax (AdamW) com pesos 1/sqrt(n) por categoria, label smoothing e ruído
+    nas impressões. Igual a torch.nn.Linear + CrossEntropyLoss(weight, label_smoothing)."""
+    rng = np.random.default_rng(seed)
+    n, d = F.shape
+    cw = 1 / np.sqrt(np.bincount(yi, minlength=K))
+    cw = (cw / cw.mean()).astype(np.float32)
+    lim = 1 / np.sqrt(d)
+    W = rng.uniform(-lim, lim, (K, d)).astype(np.float32)
+    b = rng.uniform(-lim, lim, K).astype(np.float32)
+    mW, vW, mb, vb = np.zeros_like(W), np.zeros_like(W), np.zeros_like(b), np.zeros_like(b)
+    b1, b2, eps, step = 0.9, 0.999, 1e-8, 0
+    for _ in range(epochs):
+        perm = rng.permutation(n)
+        for s in range(0, n, batch):
+            j = perm[s:s + batch]
+            x = F[j] + noise * rng.standard_normal((len(j), d)).astype(np.float32)
+            z = x @ W.T + b
+            z -= z.max(1, keepdims=True)
+            p = np.exp(z)
+            p /= p.sum(1, keepdims=True)
+            a = np.broadcast_to(smooth * cw / K, (len(j), K)).copy()   # peso de cada -log p
+            a[np.arange(len(j)), yi[j]] += (1 - smooth) * cw[yi[j]]
+            g = (p * a.sum(1, keepdims=True) - a) / cw[yi[j]].sum()
+            gW, gb = g.T @ x, g.sum(0)
+            step += 1
+            for P_, G, M, V in ((W, gW, mW, vW), (b, gb, mb, vb)):
+                P_ *= 1 - lr * wd
+                M *= b1
+                M += (1 - b1) * G
+                V *= b2
+                V += (1 - b2) * G * G
+                P_ -= lr * (M / (1 - b1 ** step)) / (np.sqrt(V / (1 - b2 ** step)) + eps)
+    return W, b
 
 
 def train(X1: np.ndarray, X2: np.ndarray | None, y: np.ndarray, temperature: float = 20.0,
-          use_helper: bool = False, iters: int = 60, lr: float = 0.5, l2: float = 1.0) -> Model:
-    """Classificador de cossenos: parte da média de cada categoria e afina com descida de
-    gradiente (puxado para essa média, para não decorar poucos exemplos)."""
+          use_helper: bool = False, iters: int = 60, lr: float = 0.5, l2: float = 1.0,
+          head: str = "cos") -> Model:
+    """head "cos": classificador de cossenos; parte da média de cada categoria e afina com
+    descida de gradiente (puxado para essa média, para não decorar poucos exemplos).
+    head "linear": regressão softmax (_linear_head). A porta usa sempre as médias (protos)."""
     F = features(X1, X2 if use_helper else None)
     y = np.asarray(y)
     classes, yi = np.unique(y, return_inverse=True)
     onehot = np.eye(len(classes), dtype=np.float32)[yi]
     protos = _norm(onehot.T @ F)
+    if head == "linear" and len(classes) >= 2:
+        W, b = _linear_head(F.astype(np.float32), yi, len(classes))
+        return Model(classes=classes, W=W, protos=protos.astype(np.float32),
+                     temperature=1.0, use_helper=use_helper, b=b)
     W = protos.copy()
     if len(classes) >= 2:
         for _ in range(iters):
@@ -99,10 +151,7 @@ def blend(P: np.ndarray, model: Model, X1: np.ndarray, X2: np.ndarray | None = N
     """Mistura as probabilidades da IA (P: sons x categorias UCS) com as do classificador."""
     P = np.atleast_2d(P)
     F = features(X1, X2 if model.use_helper else None)
-    logits = model.temperature * F @ model.W.T
-    logits -= logits.max(1, keepdims=True)
-    q = np.exp(logits)
-    q /= q.sum(1, keepdims=True)
+    q = model.probs(F)
     # parece-se com alguma categoria conhecida? (semelhança ao "retrato" mais próximo)
     sims = F @ model.protos.T
     nearest = sims.argmax(1)

@@ -44,6 +44,9 @@ class Knowledge:
         self.emb2: dict[str, np.ndarray] = {}  # id -> embedding do segundo modelo (se houver)
         self._clf = None
         self._clf_ready = False
+        self._version = 0                              # sobe a cada alteração dos exemplos
+        self._training: threading.Thread | None = None
+        self._trained = threading.Condition(self.lock)
         self._matrix = None
         self._ids: list[str] = []
         self._timer: threading.Timer | None = None
@@ -78,6 +81,7 @@ class Knowledge:
     def _changed(self) -> None:
         self._matrix = None
         self._clf_ready = False
+        self._version += 1
 
     # --- aprender ----------------------------------------------------------------
     def learn(self, emb: np.ndarray, review: dict, fields: dict, author: str,
@@ -150,29 +154,75 @@ class Knowledge:
                     break
             return out
 
-    def classifier(self) -> classifier.Model | None:
+    # com milhares de exemplos o treino demora segundos (9130 exemplos: ~25 s): a partir daqui
+    # refaz-se em segundo plano e, entretanto, usa-se o classificador anterior (o som acabado de
+    # confirmar já conta na memória kNN). wait=True (testes, recalcular) espera pelo novo.
+    BACKGROUND_FROM = 2000
+
+    def _training_data(self):
+        """(X1, X2, y, use_helper) com os exemplos atuais, ou None se forem poucos."""
+        ids = [i for i in self.emb if self.meta.get(i, {}).get("catid")]
+        if len(ids) < classifier.MIN_EXAMPLES:
+            return None
+        from .ucs import load_ucs
+        index = {c.catid: n for n, c in enumerate(load_ucs())}
+        ids = [i for i in ids if self.meta[i]["catid"] in index]
+        # um exemplo antigo sem o segundo modelo não pode desligá-lo para os outros todos
+        # (ESC-50: 1 exemplo em 502 custava 3 pontos); só se desiste se faltar em muitos
+        with2 = [i for i in ids if i in self.emb2]
+        use2 = classifier.TRAIN.get("use_helper", False) and len(with2) >= 0.8 * len(ids)
+        if use2:
+            ids = with2
+        if not ids:
+            return None
+        X1 = np.stack([self.emb[i] for i in ids])
+        X2 = np.stack([self.emb2[i] for i in ids]) if use2 else None
+        y = np.array([index[self.meta[i]["catid"]] for i in ids])
+        return X1, X2, y, use2
+
+    @staticmethod
+    def _fit(data):
+        if data is None:
+            return None
+        X1, X2, y, use2 = data
+        return classifier.train(X1, X2, y, **dict(classifier.TRAIN, use_helper=use2))
+
+    def _train_background(self, data, version: int) -> None:
+        try:
+            clf, failed = self._fit(data), False
+        except Exception:   # noqa: BLE001 — fica o anterior (sem repetir em ciclo)
+            clf, failed = None, True
+        with self.lock:
+            self._training = None
+            if failed:
+                self._clf_ready = True
+            elif version == self._version:
+                self._clf, self._clf_ready = clf, True
+            self._trained.notify_all()
+
+    def warm(self) -> None:
+        """Começa já o treino (ao abrir a app), para a primeira sugestão não esperar."""
+        threading.Thread(target=self.classifier, daemon=True, name="aquecer-classificador").start()
+
+    def classifier(self, wait: bool = False) -> classifier.Model | None:
         """Classificador treinado com todos os exemplos (refeito quando estes mudam)."""
         with self.lock:
-            if not self._clf_ready:
-                self._clf = None
-                ids = [i for i in self.emb if self.meta.get(i, {}).get("catid")]
-                if len(ids) >= classifier.MIN_EXAMPLES:
-                    from .ucs import load_ucs
-                    index = {c.catid: n for n, c in enumerate(load_ucs())}
-                    ids = [i for i in ids if self.meta[i]["catid"] in index]
-                    # um exemplo antigo sem o segundo modelo não pode desligá-lo para os outros todos
-                    # (ESC-50: 1 exemplo em 502 custava 3 pontos); só se desiste se faltar em muitos
-                    with2 = [i for i in ids if i in self.emb2]
-                    use2 = classifier.TRAIN.get("use_helper", False) and len(with2) >= 0.8 * len(ids)
-                    if use2:
-                        ids = with2
-                    if ids:
-                        X1 = np.stack([self.emb[i] for i in ids])
-                        X2 = np.stack([self.emb2[i] for i in ids]) if use2 else None
-                        y = np.array([index[self.meta[i]["catid"]] for i in ids])
-                        params = dict(classifier.TRAIN, use_helper=use2)
-                        self._clf = classifier.train(X1, X2, y, **params)
-                self._clf_ready = True
+            if self._clf_ready:
+                return self._clf
+            if self._training is None:
+                data, version = self._training_data(), self._version
+                if data is None or len(data[2]) < self.BACKGROUND_FROM:
+                    self._clf, self._clf_ready = self._fit(data), True   # rápido: aqui mesmo
+                    return self._clf
+                self._training = threading.Thread(target=self._train_background, args=(data, version),
+                                                  daemon=True, name="treino-classificador")
+                self._training.start()
+            if not wait and self._clf is not None:
+                return self._clf        # o anterior, até o novo estar pronto
+            while not self._clf_ready:
+                if self._training is None:      # outra alteração entretanto: treina-se de novo
+                    return self.classifier(wait=True)
+                self._trained.wait(timeout=1.0)
             return self._clf
 
     # --- partilhar ---------------------------------------------------------------
