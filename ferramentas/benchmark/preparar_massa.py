@@ -27,13 +27,13 @@ MAPS: dict[str, dict[str, list[str]]] = {
     "tut2018": {
         "airport": ["AMBTran", "AMBPubl"],
         "bus": ["VEHBus", "VEHInt"],
-        "metro": ["TRNSbwy", "TRNInt", "TRNElec"],
+        "metro": ["TRNInt", "TRNSbwy", "TRNElec"],   # gravado dentro do metro (alfândega 2026-11-13)
         "metro_station": ["AMBTran", "AMBUndr"],
         "park": ["AMBPark", "AMBSubn"],
         "public_square": ["AMBUrbn", "AMBTown", "AMBPubl"],
         "shopping_mall": ["AMBPubl", "CRWDWalla"],
         "street_pedestrian": ["AMBUrbn", "AMBTown", "CRWDWalla"],
-        "street_traffic": ["AMBTraf", "AMBUrbn"],
+        "street_traffic": ["AMBUrbn", "AMBTraf"],   # cena com tudo misturado, não trânsito limpo (idem)
         "tram": ["TRNTram", "TRNInt"],
     },
     "cochlscene": {
