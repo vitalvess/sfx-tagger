@@ -76,6 +76,7 @@
     <button data-tab="treinar" class="on">Treinar a IA</button>
     <button data-tab="testar">Testar a IA</button>
     <button data-tab="conhecimento">Conhecimento</button>
+    <button data-tab="suspeitos">Rever exemplos</button>
     <button data-tab="definicoes">Modelos e PIN</button>
     <div class="spacer"></div>
     <button id="adminBack">Voltar aos sons</button>
@@ -112,6 +113,15 @@
       </div>
       <input type="file" id="kbFile" accept=".sfxk" hidden>
       <div id="kbResult" class="kb-result hidden"></div>
+    </div>
+    <div class="admin-panel hidden" data-panel="suspeitos">
+      <h2>Rever exemplos suspeitos</h2>
+      <p>Exemplos que a IA aprendeu mas cuja categoria provavelmente está errada: o som parece-se mais com
+        outra categoria, e os modelos de áudio concordam com essa outra. Ouve cada um e decide.</p>
+      <p class="note">Mudar ou apagar altera o que a IA sabe (ela volta a aprender sozinha, em cerca de 20 segundos).
+        "Está certo" só tira o exemplo desta lista. Reabrir a pasta de origem não desfaz as tuas decisões.</p>
+      <div class="kb-actions"><button class="primary" id="susLoad">Procurar exemplos suspeitos</button></div>
+      <div id="susBody"></div>
     </div>
     <div class="admin-panel hidden" data-panel="definicoes">
       <h2>Modelos</h2>

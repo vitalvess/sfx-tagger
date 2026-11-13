@@ -89,9 +89,18 @@ class Knowledge:
         """Guarda (ou atualiza) o exemplo de um som confirmado."""
         eid = example_id(emb)
         with self.lock:
+            catid = fields.get("catid", "")
+            # decisões do ecrã "Rever exemplos suspeitos": reabrir a pasta de origem (learn_existing)
+            # não pode desfazê-las; só uma confirmação NOVA, com outra categoria, conta
+            gone = self._removed().get(eid)
+            if gone is not None and gone == catid:
+                return eid
             old = self.meta.get(eid, {})
+            ov = old.get("relabeled") or {}
+            if ov and catid == ov.get("from"):
+                catid = ov.get("to", catid)
             self.meta[eid] = {
-                "catid": fields.get("catid", ""),
+                "catid": catid,
                 "ai_catid": review.get("ai_catid", ""),
                 "ai_score": review.get("ai_score"),
                 "verdict": review.get("verdict", ""),
@@ -105,6 +114,9 @@ class Knowledge:
                 "origin": old.get("origin", "local"),
                 "app": __version__,
             }
+            for k in ("relabeled", "kept"):
+                if k in old and catid == old.get("catid"):
+                    self.meta[eid][k] = old[k]
             self.emb[eid] = np.asarray(emb, np.float32)
             if emb2 is not None:
                 self.emb2[eid] = np.asarray(emb2, np.float32)
@@ -307,6 +319,63 @@ class Knowledge:
                 self.emb2.pop(i, None)
             self._save()
             return len(ids)
+
+    # --- rever exemplos (ecrã "Rever exemplos suspeitos") -----------------------
+    def _removed(self) -> dict:
+        """Exemplos apagados na revisão: {id: categoria que tinham}. Ficam registados para que
+        reabrir a pasta de origem não os volte a ensinar."""
+        if not hasattr(self, "_removed_cache"):
+            f = self.dir / "removidos.json"
+            try:
+                self._removed_cache = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+            except (OSError, ValueError):
+                self._removed_cache = {}
+        return self._removed_cache
+
+    def relabel(self, eid: str, catid: str) -> bool:
+        with self.lock:
+            m = self.meta.get(eid)
+            if m is None:
+                return False
+            if m.get("catid") != catid:
+                m["relabeled"] = {"from": m.get("catid", ""), "to": catid, "at": time.strftime("%Y-%m-%d %H:%M")}
+                m["catid"] = catid
+            m["kept"] = True        # revisto por uma pessoa: não volta à lista
+            m["updated"] = time.strftime("%Y-%m-%d %H:%M")
+            self._changed()
+            self._schedule_save()
+            return True
+
+    def keep(self, eid: str) -> bool:
+        with self.lock:
+            m = self.meta.get(eid)
+            if m is None:
+                return False
+            m["kept"] = True        # a etiqueta está certa: não volta à lista (não muda o treino)
+            from . import suspeitos
+            suspeitos._cache["version"] = None
+            self._schedule_save()
+            return True
+
+    def remove(self, ids: list[str]) -> int:
+        with self.lock:
+            gone = self._removed()
+            n = 0
+            for i in ids:
+                m = self.meta.pop(i, None)
+                if m is None:
+                    continue
+                gone[i] = m.get("catid", "")
+                self.emb.pop(i, None)
+                self.emb2.pop(i, None)
+                n += 1
+            if n:
+                tmp = self.dir / "removidos.tmp"
+                tmp.write_text(json.dumps(gone, ensure_ascii=False), encoding="utf-8")
+                os.replace(tmp, self.dir / "removidos.json")
+                self._changed()
+                self._schedule_save()
+            return n
 
     # --- painel ------------------------------------------------------------------
     def stats(self) -> dict:

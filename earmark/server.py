@@ -504,6 +504,62 @@ def knowledge_forget(req: ForgetReq, request: Request):
     return {"removed": n, "stats": get_knowledge().stats()}
 
 
+@app.get("/api/knowledge/suspects")
+def knowledge_suspects(request: Request, limit: int = 100):
+    """Exemplos aprendidos cuja categoria provavelmente está errada (suspeitos.py)."""
+    require_admin(request)
+    from . import suspeitos
+    kb = get_knowledge()
+    t = get_tagger()
+    res = suspeitos.find(kb, t if t.cat_matrix is not None else None, limit=max(1, min(limit, 500)))
+    for it in res["items"]:
+        it["audio"] = suspeitos.audio_path(kb.meta.get(it["id"], {})) is not None
+    return {**res, "examples": len(kb.meta), "models_ready": t.cat_matrix is not None}
+
+
+@app.get("/api/knowledge/audio/{eid}")
+def knowledge_audio(eid: str):
+    from . import suspeitos
+    m = get_knowledge().meta.get(eid)
+    p = suspeitos.audio_path(m) if m else None
+    if p is None:
+        raise HTTPException(404, "Ficheiro do exemplo não encontrado")
+    return FileResponse(p, media_type="audio/wav")
+
+
+class RelabelReq(BaseModel):
+    id: str
+    catid: str
+
+
+@app.post("/api/knowledge/relabel")
+def knowledge_relabel(req: RelabelReq, request: Request):
+    require_admin(request)
+    if ucs.lookup(req.catid) is None:
+        raise HTTPException(400, "CatID desconhecido")
+    if not get_knowledge().relabel(req.id, ucs.lookup(req.catid).catid):
+        raise HTTPException(404, "Exemplo não encontrado")
+    return {"ok": True, "examples": len(get_knowledge().meta)}
+
+
+class IdsReq(BaseModel):
+    ids: list[str]
+
+
+@app.post("/api/knowledge/keep")
+def knowledge_keep(req: IdsReq, request: Request):
+    require_admin(request)
+    n = sum(get_knowledge().keep(i) for i in req.ids)
+    return {"kept": n}
+
+
+@app.post("/api/knowledge/remove")
+def knowledge_remove(req: IdsReq, request: Request):
+    require_admin(request)
+    n = get_knowledge().remove(req.ids)
+    return {"removed": n, "examples": len(get_knowledge().meta)}
+
+
 @app.post("/api/resuggest")
 def resuggest(request: Request):
     require_admin(request)

@@ -926,6 +926,7 @@ function showAdminTab(tab) {
   $$("#adminNav [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   $$(".admin-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== tab));
   if (tab === "conhecimento") loadKnowledge();
+  if (tab === "suspeitos" && !$("#susBody").innerHTML.trim()) loadSuspects();
   if (tab === "definicoes") { $("#defPrecision").checked = !!S.settings.max_precision; showPrecision(); }
   if (tab === "testar" && !$("#evalBody").innerHTML.trim()) api("/api/evaluation").then((r) => r.summary && showEvaluation()).catch(() => {});
 }
@@ -1321,6 +1322,62 @@ function renderKnowledge(st) {
     toast(`${res.removed} exemplos removidos.`);
   });
 }
+
+// ---------------------------------------------------------------- rever exemplos suspeitos
+function ucsName(catid) {
+  const c = (S.ucs || []).find((u) => u.catid === catid);
+  return c ? `${c.category} › ${c.subcategory}` : "";
+}
+
+async function loadSuspects() {
+  const body = $("#susBody");
+  body.innerHTML = '<p class="muted">A procurar… (com muitos exemplos pode demorar alguns segundos)</p>';
+  let r;
+  try { r = await api("/api/knowledge/suspects?limit=100"); } catch (e) { body.innerHTML = ""; return toast(e.message, true); }
+  if (!r.models_ready) body.insertAdjacentHTML("afterbegin", '<p class="note">Os modelos de IA ainda estão a carregar: a lista usa só o que foi aprendido.</p>');
+  if (!r.items.length) {
+    body.innerHTML = `<p class="muted">Nenhum exemplo suspeito em ${r.checked} verificados.</p>`;
+    return;
+  }
+  body.innerHTML = `<p class="muted">${r.total} suspeitos em ${r.checked} exemplos verificados${r.total > r.items.length ? ` (a mostrar os ${r.items.length} mais prováveis)` : ""}.</p>
+    <table class="kb-table sus-table"><tr><th>Som</th><th>Está como</th><th>Parece</th><th></th></tr>
+    ${r.items.map((it) => `<tr data-sid="${esc(it.id)}">
+      <td><div class="sus-file" title="${esc(it.file)}">${esc(it.file || "(sem nome)")}</div>
+        <div class="muted">${esc(it.author)}</div>
+        ${it.audio ? `<audio controls preload="none" src="/api/knowledge/audio/${encodeURIComponent(it.id)}"></audio>` : '<div class="muted">ficheiro não encontrado</div>'}</td>
+      <td><code>${esc(it.catid)}</code><div class="muted">${esc(ucsName(it.catid))}</div></td>
+      <td><code>${esc(it.suggest)}</code><div class="muted">${esc(ucsName(it.suggest))}</div></td>
+      <td class="sus-actions">
+        <button data-act="keep" title="A categoria atual está certa">Está certo</button>
+        <button data-act="use" class="primary" title="Mudar para ${esc(it.suggest)}">Mudar para ${esc(it.suggest)}</button>
+        <div class="sus-other"><input list="ucsListSus" placeholder="Outro CatID" aria-label="Outro CatID"><button data-act="other">Mudar</button></div>
+        <button data-act="del" class="link-btn" title="Apagar este exemplo da memória da IA">apagar</button>
+      </td></tr>`).join("")}</table>
+    <datalist id="ucsListSus">${(S.ucs || []).map((c) => `<option value="${esc(c.catid)}">${esc(c.category)} › ${esc(c.subcategory)}</option>`).join("")}</datalist>`;
+  $$("#susBody [data-act]").forEach((b) => b.onclick = () => suspectAction(b));
+}
+
+async function suspectAction(b) {
+  const row = b.closest("tr");
+  const id = row.dataset.sid;
+  const it = { suggest: row.querySelector("td:nth-child(3) code").textContent };
+  try {
+    if (b.dataset.act === "keep") await api("/api/knowledge/keep", { method: "POST", body: { ids: [id] } });
+    else if (b.dataset.act === "del") {
+      if (!confirm("Apagar este exemplo da memória da IA?")) return;
+      await api("/api/knowledge/remove", { method: "POST", body: { ids: [id] } });
+    } else {
+      const cat = b.dataset.act === "use" ? it.suggest : row.querySelector(".sus-other input").value.trim();
+      if (!cat) return toast("Escreve o CatID certo.", true);
+      await api("/api/knowledge/relabel", { method: "POST", body: { id, catid: cat } });
+    }
+  } catch (e) { return toast(e.message, true); }
+  const done = { keep: "Mantido", del: "Apagado", use: "Mudado", other: "Mudado" }[b.dataset.act];
+  row.classList.add("sus-done");
+  row.querySelector(".sus-actions").innerHTML = `<span class="muted">${done}</span>`;
+}
+
+$("#susLoad").onclick = loadSuspects;
 
 $("#kbImport").onclick = () => $("#kbFile").click();
 $("#kbResuggest").onclick = () => {

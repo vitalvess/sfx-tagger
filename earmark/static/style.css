@@ -410,6 +410,14 @@ button.icon svg { width: 11px; height: 11px; fill: currentColor; display: block;
 .kb-table td, .kb-table th { padding: 3px 6px 3px 0; border-bottom: 1px solid var(--line); text-align: left; }
 .kb-table th { color: var(--muted); font-weight: 400; }
 .kb-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sus-table { margin-top: 8px; }
+.sus-table td { vertical-align: top; padding-top: 8px; padding-bottom: 8px; }
+.sus-file { font-family: var(--mono); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sus-table audio { display: block; width: 240px; height: 32px; margin-top: 4px; }
+.sus-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.sus-other { display: flex; gap: 4px; }
+.sus-other input { width: 120px; }
+.sus-done td { opacity: 0.55; }
 .kb-result { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--text); }
 .kb-result button { margin-top: 8px; }
 .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 0; min-height: 0; }
