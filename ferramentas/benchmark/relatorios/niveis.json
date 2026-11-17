@@ -1,0 +1,230 @@
+{
+ "atual": {
+  "treino_s": 15,
+  "Teste - CochlScene (ambientes)": {
+   "n": 1300,
+   "known": 0,
+   "top1": 52.0,
+   "top5": 81.9,
+   "family": 70.6,
+   "alta": {
+    "level": "alta",
+    "n": 272,
+    "right": 80.1
+   }
+  },
+  "Teste - Nonspeech7k (sons humanos)": {
+   "n": 584,
+   "known": 0,
+   "top1": 70.9,
+   "top5": 93.5,
+   "family": 84.9,
+   "alta": {
+    "level": "alta",
+    "n": 303,
+    "right": 92.7
+   }
+  },
+  "Teste - TUT 2018 (cidades)": {
+   "n": 1000,
+   "known": 0,
+   "top1": 43.9,
+   "top5": 79.6,
+   "family": 60.3,
+   "alta": {
+    "level": "alta",
+    "n": 8,
+    "right": 62.5
+   }
+  },
+  "Teste - UrbanSound8K (rua)": {
+   "n": 954,
+   "known": 0,
+   "top1": 71.2,
+   "top5": 89.4,
+   "family": 77.3,
+   "alta": {
+    "level": "alta",
+    "n": 280,
+    "right": 96.8
+   }
+  },
+  "Teste - VocalSound (sons de voz)": {
+   "n": 596,
+   "known": 4,
+   "top1": 81.7,
+   "top5": 93.8,
+   "family": 92.1,
+   "alta": {
+    "level": "alta",
+    "n": 356,
+    "right": 97.2
+   }
+  },
+  "Teste fixo (copia das partes teste)": {
+   "n": 1610,
+   "known": 1,
+   "top1": 68.5,
+   "top5": 87.2,
+   "family": 78.9,
+   "alta": {
+    "level": "alta",
+    "n": 554,
+    "right": 95.8
+   }
+  },
+  "exemplos": 9130
+ },
+ "sem bronze": {
+  "treino_s": 10,
+  "Teste - CochlScene (ambientes)": {
+   "n": 1300,
+   "known": 0,
+   "top1": 35.9,
+   "top5": 67.1,
+   "family": 55.9,
+   "alta": {
+    "level": "alta",
+    "n": 190,
+    "right": 62.1
+   }
+  },
+  "Teste - Nonspeech7k (sons humanos)": {
+   "n": 584,
+   "known": 0,
+   "top1": 70.9,
+   "top5": 94.5,
+   "family": 85.1,
+   "alta": {
+    "level": "alta",
+    "n": 303,
+    "right": 92.7
+   }
+  },
+  "Teste - TUT 2018 (cidades)": {
+   "n": 1000,
+   "known": 0,
+   "top1": 9.5,
+   "top5": 26.3,
+   "family": 37.6,
+   "alta": {
+    "level": "alta",
+    "n": 51,
+    "right": 9.8
+   }
+  },
+  "Teste - UrbanSound8K (rua)": {
+   "n": 954,
+   "known": 0,
+   "top1": 53.9,
+   "top5": 76.7,
+   "family": 69.0,
+   "alta": {
+    "level": "alta",
+    "n": 195,
+    "right": 88.7
+   }
+  },
+  "Teste - VocalSound (sons de voz)": {
+   "n": 596,
+   "known": 4,
+   "top1": 81.7,
+   "top5": 93.8,
+   "family": 92.1,
+   "alta": {
+    "level": "alta",
+    "n": 354,
+    "right": 97.2
+   }
+  },
+  "Teste fixo (copia das partes teste)": {
+   "n": 1610,
+   "known": 1,
+   "top1": 69.1,
+   "top5": 87.8,
+   "family": 79.8,
+   "alta": {
+    "level": "alta",
+    "n": 559,
+    "right": 95.5
+   }
+  },
+  "exemplos": 6360
+ },
+ "bronze reduzido (30/categoria)": {
+  "treino_s": 12,
+  "Teste - CochlScene (ambientes)": {
+   "n": 1300,
+   "known": 0,
+   "top1": 46.1,
+   "top5": 79.5,
+   "family": 65.5,
+   "alta": {
+    "level": "alta",
+    "n": 252,
+    "right": 77.0
+   }
+  },
+  "Teste - Nonspeech7k (sons humanos)": {
+   "n": 584,
+   "known": 0,
+   "top1": 70.9,
+   "top5": 94.0,
+   "family": 84.9,
+   "alta": {
+    "level": "alta",
+    "n": 303,
+    "right": 92.7
+   }
+  },
+  "Teste - TUT 2018 (cidades)": {
+   "n": 1000,
+   "known": 0,
+   "top1": 33.9,
+   "top5": 68.8,
+   "family": 56.5,
+   "alta": {
+    "level": "alta",
+    "n": 25,
+    "right": 44.0
+   }
+  },
+  "Teste - UrbanSound8K (rua)": {
+   "n": 954,
+   "known": 0,
+   "top1": 67.2,
+   "top5": 86.8,
+   "family": 75.8,
+   "alta": {
+    "level": "alta",
+    "n": 228,
+    "right": 95.2
+   }
+  },
+  "Teste - VocalSound (sons de voz)": {
+   "n": 596,
+   "known": 4,
+   "top1": 81.9,
+   "top5": 93.6,
+   "family": 92.1,
+   "alta": {
+    "level": "alta",
+    "n": 355,
+    "right": 97.2
+   }
+  },
+  "Teste fixo (copia das partes teste)": {
+   "n": 1610,
+   "known": 1,
+   "top1": 68.9,
+   "top5": 87.7,
+   "family": 79.5,
+   "alta": {
+    "level": "alta",
+    "n": 559,
+    "right": 95.3
+   }
+  },
+  "exemplos": 7208
+ }
+}
