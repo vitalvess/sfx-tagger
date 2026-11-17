@@ -1,0 +1,167 @@
+{
+ "atual (2 modelos)": {
+  "treino_s": 3,
+  "Teste - CochlScene (ambientes)": [
+   50.8,
+   79.7,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   72.9,
+   94.9,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   42.6,
+   80.8,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   72.3,
+   91.3,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   81.8,
+   93.7,
+   600
+  ],
+  "Teste fixo (copia das partes teste)": [
+   58.2,
+   77.9,
+   1611
+  ]
+ },
+ "Precisão máxima hoje": {
+  "treino_s": 4,
+  "Teste - CochlScene (ambientes)": [
+   62.1,
+   89.1,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   73.8,
+   95.2,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   44.0,
+   82.4,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   72.7,
+   91.7,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   83.8,
+   94.3,
+   600
+  ],
+  "Teste fixo (copia das partes teste)": [
+   61.6,
+   81.7,
+   1611
+  ]
+ },
+ "+ 3.º modelo no treino": {
+  "treino_s": 6,
+  "Teste - CochlScene (ambientes)": [
+   69.3,
+   91.5,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   76.0,
+   96.1,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   46.2,
+   81.3,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   74.6,
+   92.1,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   84.2,
+   94.2,
+   600
+  ],
+  "Teste fixo (copia das partes teste)": [
+   61.8,
+   81.3,
+   1611
+  ]
+ },
+ "+ fundos": {
+  "treino_s": 5,
+  "Teste - CochlScene (ambientes)": [
+   51.9,
+   79.5,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   73.6,
+   95.4,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   45.3,
+   80.7,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   74.3,
+   92.0,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   81.7,
+   93.5,
+   600
+  ],
+  "Teste fixo (copia das partes teste)": [
+   58.3,
+   78.0,
+   1611
+  ]
+ },
+ "as duas": {
+  "treino_s": 11,
+  "Teste - CochlScene (ambientes)": [
+   69.5,
+   90.8,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   75.7,
+   96.4,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   47.8,
+   80.4,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   75.8,
+   92.2,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   83.8,
+   94.0,
+   600
+  ],
+  "Teste fixo (copia das partes teste)": [
+   61.9,
+   81.6,
+   1611
+  ]
+ }
+}
