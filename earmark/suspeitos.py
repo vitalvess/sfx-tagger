@@ -150,6 +150,11 @@ def _index() -> dict:
                     add(str(s.get("base", "")).replace("-", ""), Path(p))
         except Exception:  # noqa: BLE001 — disco desligado ou ficheiro ausente
             pass
+        try:   # pastas de treino e de teste no disco (cópias com o nome que ficou no exemplo)
+            for p in root.rglob("*.wav"):
+                by_name.setdefault(p.name, p)
+        except Exception:  # noqa: BLE001
+            pass
     # 2) pastas de treino em massa
     treino = Path.home() / "Documents" / "Earmark Treino"
     try:

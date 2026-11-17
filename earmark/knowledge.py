@@ -23,7 +23,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 
-from . import __version__, classifier, paths
+from . import __version__, classifier, paths, precisao
 
 FORMAT = "sfxtagger-conhecimento"   # identificador interno dos .sfxk: fica igual para as versões antigas os lerem
 FORMAT_VERSION = 1
@@ -42,6 +42,11 @@ class Knowledge:
         self.meta: dict[str, dict] = {}      # id -> dados do exemplo
         self.emb: dict[str, np.ndarray] = {}  # id -> embedding (float32 normalizado)
         self.emb2: dict[str, np.ndarray] = {}  # id -> embedding do segundo modelo (se houver)
+        self.emb3: dict[str, np.ndarray] = {}  # id -> embedding do 3.º modelo (Precisão máxima)
+        # cópias de cada exemplo misturado com um fundo (rua, sala…): só para treinar, nunca
+        # partilhadas nem contadas. id -> (modelo 1, modelo 2, modelo 3). exp_aumento.py
+        self.aug: dict[str, tuple] = {}
+        self._clf_key = None
         self._clf = None
         self._clf_ready = False
         self._version = 0                              # sobe a cada alteração dos exemplos
@@ -64,7 +69,31 @@ class Knowledge:
         if ef2.exists():
             with np.load(ef2) as z:
                 self.emb2 = {k: z[k].astype(np.float32) for k in z.files if k in self.emb}
+        ef3 = self.dir / "embeddings3.npz"
+        if ef3.exists():
+            with np.load(ef3) as z:
+                self.emb3 = {k: z[k].astype(np.float32) for k in z.files if k in self.emb}
+        fa = self.dir / "aumentos.npz"
+        if fa.exists():
+            with np.load(fa) as z:
+                parts: dict = {}
+                for k in z.files:
+                    eid, m = k.rsplit("|", 1)
+                    parts.setdefault(eid, {})[m] = z[k].astype(np.float32)
+                self.aug = {e: (p["1"], p["2"], p["3"]) for e, p in parts.items() if len(p) == 3}
         self.meta = {k: v for k, v in self.meta.items() if k in self.emb}
+
+    def save_extras(self) -> None:
+        """3.º modelo e misturas com fundos (escritos à parte: são grandes e mudam pouco)."""
+        with self.lock:
+            tmp = self.dir / "embeddings3.tmp.npz"
+            np.savez_compressed(tmp, **{k: v.astype(np.float16) for k, v in self.emb3.items()})
+            os.replace(tmp, self.dir / "embeddings3.npz")
+            tmp = self.dir / "aumentos.tmp.npz"
+            np.savez_compressed(tmp, **{f"{e}|{m + 1}": v[m].astype(np.float16)
+                                        for e, v in self.aug.items() for m in range(3)})
+            os.replace(tmp, self.dir / "aumentos.npz")
+            self._changed()
 
     def _save(self) -> None:
         tmp = self.dir / "exemplos.tmp"
@@ -85,7 +114,8 @@ class Knowledge:
 
     # --- aprender ----------------------------------------------------------------
     def learn(self, emb: np.ndarray, review: dict, fields: dict, author: str,
-              filename: str, save: bool = True, emb2: np.ndarray | None = None) -> str:
+              filename: str, save: bool = True, emb2: np.ndarray | None = None,
+              emb3: np.ndarray | None = None) -> str:
         """Guarda (ou atualiza) o exemplo de um som confirmado."""
         eid = example_id(emb)
         with self.lock:
@@ -120,6 +150,8 @@ class Knowledge:
             self.emb[eid] = np.asarray(emb, np.float32)
             if emb2 is not None:
                 self.emb2[eid] = np.asarray(emb2, np.float32)
+            if emb3 is not None:
+                self.emb3[eid] = np.asarray(emb3, np.float32)
             self._changed()
             if save:
                 self._schedule_save()
@@ -185,19 +217,36 @@ class Knowledge:
         use2 = classifier.TRAIN.get("use_helper", False) and len(with2) >= 0.8 * len(ids)
         if use2:
             ids = with2
+        # o 3.º modelo só conta com a Precisão máxima ligada e se quase todos os exemplos o tiverem
+        with3 = [i for i in ids if i in self.emb3]
+        use3 = (use2 and classifier.TRAIN.get("use_third", False) and precisao.active()
+                and len(with3) >= 0.8 * len(ids))
+        if use3:
+            ids = with3
         if not ids:
             return None
-        X1 = np.stack([self.emb[i] for i in ids])
-        X2 = np.stack([self.emb2[i] for i in ids]) if use2 else None
-        y = np.array([index[self.meta[i]["catid"]] for i in ids])
-        return X1, X2, y, use2
+        X1 = [self.emb[i] for i in ids]
+        X2 = [self.emb2[i] for i in ids] if use2 else None
+        X3 = [self.emb3[i] for i in ids] if use3 else None
+        y = [index[self.meta[i]["catid"]] for i in ids]
+        if use2 and classifier.TRAIN.get("use_aug", False):   # cópias com fundos, com a categoria atual do exemplo (segue as correções)
+            for i in ids:
+                a = self.aug.get(i)
+                if a is not None:
+                    X1.append(a[0])
+                    X2.append(a[1])
+                    if use3:
+                        X3.append(a[2])
+                    y.append(index[self.meta[i]["catid"]])
+        return (np.stack(X1), np.stack(X2) if use2 else None, np.stack(X3) if use3 else None,
+                np.array(y), use2, use3)
 
     @staticmethod
     def _fit(data):
         if data is None:
             return None
-        X1, X2, y, use2 = data
-        return classifier.train(X1, X2, y, **dict(classifier.TRAIN, use_helper=use2))
+        X1, X2, X3, y, use2, use3 = data
+        return classifier.train(X1, X2, y, X3=X3, **dict(classifier.TRAIN, use_helper=use2, use_third=use3))
 
     def _train_background(self, data, version: int) -> None:
         try:
@@ -219,11 +268,14 @@ class Knowledge:
     def classifier(self, wait: bool = False) -> classifier.Model | None:
         """Classificador treinado com todos os exemplos (refeito quando estes mudam)."""
         with self.lock:
+            key = precisao.active()          # ligar/desligar a Precisão máxima muda o classificador
+            if key != self._clf_key:
+                self._clf_key, self._clf_ready = key, False
             if self._clf_ready:
                 return self._clf
             if self._training is None:
                 data, version = self._training_data(), self._version
-                if data is None or len(data[2]) < self.BACKGROUND_FROM:
+                if data is None or len(data[3]) < self.BACKGROUND_FROM:
                     self._clf, self._clf_ready = self._fit(data), True   # rápido: aqui mesmo
                     return self._clf
                 self._training = threading.Thread(target=self._train_background, args=(data, version),
@@ -317,6 +369,7 @@ class Knowledge:
                 self.meta.pop(i, None)
                 self.emb.pop(i, None)
                 self.emb2.pop(i, None)
+                self.emb3.pop(i, None)
             self._save()
             return len(ids)
 
@@ -368,6 +421,7 @@ class Knowledge:
                 gone[i] = m.get("catid", "")
                 self.emb.pop(i, None)
                 self.emb2.pop(i, None)
+                self.emb3.pop(i, None)
                 n += 1
             if n:
                 tmp = self.dir / "removidos.tmp"

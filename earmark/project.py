@@ -620,28 +620,31 @@ class Project:
         with self.lock:   # a análise pode estar a acrescentar sons noutra thread
             embeddings = dict(self.embeddings)
             embeddings2 = dict(self.embeddings2)
+            embeddings3 = dict(self.embeddings3)
         n = len(embeddings)
         cached = getattr(self, "_clf_cache", None)
         if (not fresh and cached and cached[0] is base
                 and n < max(cached[1] * 1.25, cached[1] + 25)):
             return cached[2]
-        X1, X2 = [], []
+        X1, X2, X3 = [], [], []
         for rid, e in embeddings.items():
-            e2 = embeddings2.get(rid)
-            if base.use_helper and e2 is None:
+            e2, e3 = embeddings2.get(rid), embeddings3.get(rid)
+            if (base.use_helper and e2 is None) or (base.use_third and e3 is None):
                 continue
             X1.append(e)
             X2.append(e2)
+            X3.append(e3)
         if len(X1) < 20:   # biblioteca pequena: junta os exemplos confirmados (mais prudente)
             with kb.lock:
                 for i, e in kb.emb.items():
-                    e2 = kb.emb2.get(i)
-                    if base.use_helper and e2 is None:
+                    e2, e3 = kb.emb2.get(i), kb.emb3.get(i)
+                    if (base.use_helper and e2 is None) or (base.use_third and e3 is None):
                         continue
                     X1.append(e)
                     X2.append(e2)
-        bg = (classifier.features(np.stack(X1), np.stack(X2) if base.use_helper else None)
-              if X1 else None)
+                    X3.append(e3)
+        bg = (classifier.features(np.stack(X1), np.stack(X2) if base.use_helper else None,
+                                  np.stack(X3) if base.use_third else None) if X1 else None)
         clf = classifier.adapt(base, bg, gate_at=classifier.BLEND["gate_at"], **classifier.ADAPT)
         self._clf_cache = (base, n, clf)
         return clf
@@ -792,7 +795,8 @@ class Project:
             return
         get_knowledge().learn(emb, review, rec["fields"], self.author,
                               Path(rec["path"]).name, save=save,
-                              emb2=self.embeddings2.get(rec["id"]))
+                              emb2=self.embeddings2.get(rec["id"]),
+                              emb3=self.embeddings3.get(rec["id"]))
 
     def learn_existing(self) -> int:
         """Ensina à memória os sons desta biblioteca que já tinham sido confirmados."""

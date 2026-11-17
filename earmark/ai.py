@@ -369,10 +369,11 @@ class Tagger:
         logp = np.where(self.suggestable, logp, -np.inf)
         probs = _softmax(logp)
         used_clf = False
-        clf_usable = clf is not None and (helper_emb is not None or not clf.use_helper)
+        clf_usable = (clf is not None and (helper_emb is not None or not clf.use_helper)
+                      and (third_emb is not None or not clf.use_third))
         if clf_usable:
             before = probs
-            probs = classifier.blend(probs, clf, audio_emb, helper_emb, **classifier.BLEND)[0]
+            probs = classifier.blend(probs, clf, audio_emb, helper_emb, X3=third_emb, **classifier.BLEND)[0]
             used_clf = bool(np.abs(probs - before).max() > 0.02)
         used_memory = []
         if memory:

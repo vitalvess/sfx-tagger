@@ -1,0 +1,138 @@
+{
+ "antes, normal": {
+  "treino_s": 24,
+  "3.º modelo no classificador": false,
+  "Teste - CochlScene (ambientes)": [
+   52.0,
+   81.9,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   70.9,
+   93.5,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   43.9,
+   79.6,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   71.2,
+   89.4,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   81.7,
+   93.8,
+   596
+  ],
+  "Teste fixo (copia das partes teste)": [
+   68.5,
+   87.2,
+   1610
+  ]
+ },
+ "depois, normal": {
+  "treino_s": 26,
+  "3.º modelo no classificador": false,
+  "Teste - CochlScene (ambientes)": [
+   48.5,
+   77.8,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   72.4,
+   93.0,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   43.0,
+   79.3,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   72.2,
+   90.7,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   81.7,
+   93.6,
+   596
+  ],
+  "Teste fixo (copia das partes teste)": [
+   68.3,
+   86.6,
+   1610
+  ]
+ },
+ "antes, Precisão máxima": {
+  "treino_s": 14,
+  "3.º modelo no classificador": false,
+  "Teste - CochlScene (ambientes)": [
+   63.4,
+   90.0,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   72.9,
+   94.0,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   45.3,
+   80.7,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   71.8,
+   90.7,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   84.1,
+   94.1,
+   596
+  ],
+  "Teste fixo (copia das partes teste)": [
+   71.1,
+   88.5,
+   1610
+  ]
+ },
+ "depois, Precisão máxima": {
+  "treino_s": 50,
+  "3.º modelo no classificador": true,
+  "Teste - CochlScene (ambientes)": [
+   67.8,
+   89.9,
+   1300
+  ],
+  "Teste - Nonspeech7k (sons humanos)": [
+   75.0,
+   94.7,
+   584
+  ],
+  "Teste - TUT 2018 (cidades)": [
+   46.0,
+   78.6,
+   1000
+  ],
+  "Teste - UrbanSound8K (rua)": [
+   74.0,
+   90.5,
+   954
+  ],
+  "Teste - VocalSound (sons de voz)": [
+   84.7,
+   94.5,
+   596
+  ],
+  "Teste fixo (copia das partes teste)": [
+   71.2,
+   87.7,
+   1610
+  ]
+ }
+}

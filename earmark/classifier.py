@@ -21,7 +21,11 @@ from dataclasses import dataclass
 import numpy as np
 
 # parâmetros afinados (exp_otimizacao.py treino)
-TRAIN = {"temperature": 10.0, "use_helper": True, "head": "linear"}
+# use_third: 3.º modelo (Precisão máxima) também no classificador. 6 testes, 6049 sons:
+# 1.ª sugestão média 66,3 -> 68,7 (ferramentas/benchmark/exp_aumento.py)
+# use_aug: cópias com fundos (aumentos.npz). Medido com o "Testar a IA": normal 64,7 -> 64,4,
+# Precisão máxima 70,0 -> 69,8 (exp_validar.py). Não ajudam: ficam guardadas mas desligadas.
+TRAIN = {"temperature": 10.0, "use_helper": True, "head": "linear", "use_third": True, "use_aug": False}
 BLEND = {"weight": 0.6, "gate_at": 0.55, "gate_width": 0.06}
 ADAPT = {"quantile": 0.75, "margin": 0.35,   # limiar >= sons típicos da biblioteca + margem
          "ceiling": 0.65}                    # ... mas nunca acima disto (ver adapt())
@@ -32,12 +36,10 @@ def _norm(m: np.ndarray) -> np.ndarray:
     return m / (np.linalg.norm(m, axis=-1, keepdims=True) + 1e-9)
 
 
-def features(X1: np.ndarray, X2: np.ndarray | None = None) -> np.ndarray:
-    """Impressão digital usada pelo classificador (dos dois modelos, se houver)."""
-    X1 = _norm(np.atleast_2d(np.asarray(X1, np.float32)))
-    if X2 is None:
-        return X1
-    return np.concatenate([X1, _norm(np.atleast_2d(np.asarray(X2, np.float32)))], 1) / np.sqrt(2)
+def features(X1: np.ndarray, X2: np.ndarray | None = None, X3: np.ndarray | None = None) -> np.ndarray:
+    """Impressão digital usada pelo classificador (de cada modelo que houver)."""
+    parts = [_norm(np.atleast_2d(np.asarray(X, np.float32))) for X in (X1, X2, X3) if X is not None]
+    return parts[0] if len(parts) == 1 else np.concatenate(parts, 1) / np.sqrt(len(parts))
 
 
 @dataclass
@@ -49,6 +51,7 @@ class Model:
     use_helper: bool
     thresholds: np.ndarray | None = None   # limiar da "porta" de cada classe (adapt())
     b: np.ndarray | None = None            # cabeça linear: termo constante (None = cossenos)
+    use_third: bool = False                # também o 3.º modelo (Precisão máxima)
 
     def probs(self, F: np.ndarray) -> np.ndarray:
         """Probabilidades do classificador nas suas classes (F = features())."""
@@ -98,11 +101,11 @@ def _linear_head(F: np.ndarray, yi: np.ndarray, K: int, epochs: int = 60, batch:
 
 def train(X1: np.ndarray, X2: np.ndarray | None, y: np.ndarray, temperature: float = 20.0,
           use_helper: bool = False, iters: int = 60, lr: float = 0.5, l2: float = 1.0,
-          head: str = "cos") -> Model:
+          head: str = "cos", X3: np.ndarray | None = None, use_third: bool = False) -> Model:
     """head "cos": classificador de cossenos; parte da média de cada categoria e afina com
     descida de gradiente (puxado para essa média, para não decorar poucos exemplos).
     head "linear": regressão softmax (_linear_head). A porta usa sempre as médias (protos)."""
-    F = features(X1, X2 if use_helper else None)
+    F = features(X1, X2 if use_helper else None, X3 if use_third else None)
     y = np.asarray(y)
     classes, yi = np.unique(y, return_inverse=True)
     onehot = np.eye(len(classes), dtype=np.float32)[yi]
@@ -110,7 +113,7 @@ def train(X1: np.ndarray, X2: np.ndarray | None, y: np.ndarray, temperature: flo
     if head == "linear" and len(classes) >= 2:
         W, b = _linear_head(F.astype(np.float32), yi, len(classes))
         return Model(classes=classes, W=W, protos=protos.astype(np.float32),
-                     temperature=1.0, use_helper=use_helper, b=b)
+                     temperature=1.0, use_helper=use_helper, b=b, use_third=use_third)
     W = protos.copy()
     if len(classes) >= 2:
         for _ in range(iters):
@@ -121,7 +124,7 @@ def train(X1: np.ndarray, X2: np.ndarray | None, y: np.ndarray, temperature: flo
             grad = temperature * (p - onehot).T @ F / len(F) + l2 * (W - protos)
             W -= lr * grad
     return Model(classes=classes, W=_norm(W).astype(np.float32), protos=protos.astype(np.float32),
-                 temperature=temperature, use_helper=use_helper)
+                 temperature=temperature, use_helper=use_helper, use_third=use_third)
 
 
 def adapt(model: Model, background: np.ndarray, gate_at: float = 0.55, quantile: float = 0.75,
@@ -147,10 +150,11 @@ def adapt(model: Model, background: np.ndarray, gate_at: float = 0.55, quantile:
 
 
 def blend(P: np.ndarray, model: Model, X1: np.ndarray, X2: np.ndarray | None = None,
-          weight: float = 0.8, gate_at: float = 0.65, gate_width: float = 0.03) -> np.ndarray:
+          weight: float = 0.8, gate_at: float = 0.65, gate_width: float = 0.03,
+          X3: np.ndarray | None = None) -> np.ndarray:
     """Mistura as probabilidades da IA (P: sons x categorias UCS) com as do classificador."""
     P = np.atleast_2d(P)
-    F = features(X1, X2 if model.use_helper else None)
+    F = features(X1, X2 if model.use_helper else None, X3 if model.use_third else None)
     q = model.probs(F)
     # parece-se com alguma categoria conhecida? (semelhança ao "retrato" mais próximo)
     sims = F @ model.protos.T
