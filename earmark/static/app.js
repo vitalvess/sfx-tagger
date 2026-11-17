@@ -1340,12 +1340,14 @@ async function loadSuspects() {
     return;
   }
   body.innerHTML = `<p class="muted">${r.total} suspeitos em ${r.checked} exemplos verificados${r.total > r.items.length ? ` (a mostrar os ${r.items.length} mais prováveis)` : ""}.</p>
-    <table class="kb-table sus-table"><tr><th>Som</th><th>Está como</th><th>Parece</th><th></th></tr>
+    <p class="muted">Ouve o som e decide qual das duas colunas descreve o som principal. A etiqueta da base foi dada por
+      pessoas e costuma estar certa; a IA só discorda dela.</p>
+    <table class="kb-table sus-table"><tr><th>Som</th><th>Etiqueta da base (oficial)</th><th>A IA acha que é</th><th></th></tr>
     ${r.items.map((it) => `<tr data-sid="${esc(it.id)}">
       <td><div class="sus-file" title="${esc(it.file)}">${esc(it.file || "(sem nome)")}</div>
         <div class="muted">${esc(it.author)}</div>
         ${it.audio ? `<audio controls preload="none" src="/api/knowledge/audio/${encodeURIComponent(it.id)}"></audio>` : `<div class="muted">${r.external_connected ? "ficheiro não encontrado" : "o som está no disco externo (D:), que está desligado"}</div>`}</td>
-      <td><code>${esc(it.catid)}</code><div class="muted">${esc(ucsName(it.catid))}</div></td>
+      <td>${it.original ? `<div class="sus-orig">${esc(it.original.replace(/_/g, " "))}</div>` : ""}<code>${esc(it.catid)}</code><div class="muted">${esc(ucsName(it.catid))}</div></td>
       <td><code>${esc(it.suggest)}</code><div class="muted">${esc(ucsName(it.suggest))}</div></td>
       <td class="sus-actions">
         <button data-act="keep" title="A categoria atual está certa">Está certo</button>

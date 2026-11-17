@@ -514,7 +514,9 @@ def knowledge_suspects(request: Request, limit: int = 100):
     limit = max(1, min(limit, 500))
     res = suspeitos.find(kb, t if t.cat_matrix is not None else None, limit=500)
     for it in res["items"]:
-        it["audio"] = suspeitos.audio_path(kb.meta.get(it["id"], {})) is not None
+        m = kb.meta.get(it["id"], {})
+        it["audio"] = suspeitos.audio_path(m) is not None
+        it["original"] = suspeitos.original_class(m)
     # os que se podem ouvir primeiro (mantendo a ordem de suspeita dentro de cada grupo)
     res["items"] = sorted(res["items"], key=lambda it: not it["audio"])[:limit]
     return {**res, "examples": len(kb.meta), "models_ready": t.cat_matrix is not None,

@@ -475,3 +475,5 @@ button.mic.busy { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .spinner, button.mic.rec { animation: none; } .bar div { transition: none; } }
 /* modo tátil: alvos de 44 px */
 @media (pointer: coarse) { :root { --control: 44px; } .files td { height: 52px; } .filters button, .selbar button, #sortSel { min-height: 40px; } }
+
+.sus-orig { font-weight: 500; margin-bottom: 2px; }

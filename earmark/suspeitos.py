@@ -202,6 +202,30 @@ def audio_path(meta: dict) -> Path | None:
         return p
 
 
+_originals: dict | None = None
+
+
+def original_class(meta: dict) -> str:
+    """A etiqueta que a base de dados deu ao som (ex.: "dog_bark"), lida dos origem.csv que
+    acompanham as pastas de treino. Vazio se não se souber."""
+    global _originals
+    with _files_lock:
+        if _originals is None:
+            _originals = {}
+            roots = [Path.home() / "Documents" / "Earmark Treino", EXTERNAL]
+            for root in roots:
+                try:
+                    for f in root.rglob("origem.csv"):
+                        import csv
+                        with open(f, newline="", encoding="utf-8-sig") as h:
+                            for row in csv.DictReader(h):
+                                if row.get("ficheiro") and row.get("classe original"):
+                                    _originals.setdefault(row["ficheiro"], row["classe original"])
+                except Exception:  # noqa: BLE001 — disco desligado
+                    continue
+    return _originals.get(meta.get("file") or "", "")
+
+
 def external_connected() -> bool:
     try:
         return EXTERNAL.exists()
