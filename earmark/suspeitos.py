@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -124,7 +125,10 @@ def _compute(kb, tagger) -> list[dict]:
 # --- onde está o áudio de cada exemplo (o conhecimento não guarda áudio) --------------------------------
 
 _files: dict | None = None
+_files_at = 0.0
 _files_lock = threading.Lock()
+REINDEX_AFTER = 60.0   # um disco ligado entretanto passa a contar sem reiniciar a app
+EXTERNAL = Path("D:/SFX Testes")
 
 
 def _index() -> dict:
@@ -137,7 +141,7 @@ def _index() -> dict:
         by_name.setdefault(path.name, path)
 
     # 1) plano de redistribuição das bases FSD50K / BBC / ESC-50 (no disco externo, que pode faltar)
-    for root in (Path("D:/SFX Testes"),):
+    for root in (EXTERNAL,):
         try:
             plan = json.loads((root / "redistribuicao.json").read_text(encoding="utf-8"))
             for s in plan.get("sons", []):
@@ -154,7 +158,14 @@ def _index() -> dict:
                 by_name.setdefault(p.name, p)
     except Exception:  # noqa: BLE001
         pass
-    # 3) pastas recentes (só as que respondem)
+    # 3) lotes carregados pelo browser (Documentos/SFX Tagger e Documentos/Earmark)
+    for name in ("SFX Tagger", "Earmark"):
+        try:
+            for p in (Path.home() / "Documents" / name).rglob("*.wav"):
+                by_name.setdefault(p.name, p)
+        except Exception:  # noqa: BLE001
+            pass
+    # 4) pastas recentes (só as que respondem)
     try:
         s = json.loads((paths.app_dir() / "definicoes.json").read_text(encoding="utf-8"))
         for r in s.get("recent", [])[:8]:
@@ -170,17 +181,32 @@ def _index() -> dict:
     return {"pair": idx, "name": by_name}
 
 
-def audio_path(meta: dict) -> Path | None:
-    global _files
-    with _files_lock:
-        if _files is None:
-            _files = _index()
+def _lookup(meta: dict) -> Path | None:
     f = meta.get("file") or ""
     p = _files["pair"].get((meta.get("author") or "", f)) or _files["name"].get(f)
     try:
         return p if p is not None and p.exists() else None
     except OSError:
         return None
+
+
+def audio_path(meta: dict) -> Path | None:
+    global _files, _files_at
+    with _files_lock:
+        if _files is None:
+            _files, _files_at = _index(), time.time()
+        p = _lookup(meta)
+        if p is None and time.time() - _files_at > REINDEX_AFTER:
+            _files, _files_at = _index(), time.time()   # o disco pode ter sido ligado
+            p = _lookup(meta)
+        return p
+
+
+def external_connected() -> bool:
+    try:
+        return EXTERNAL.exists()
+    except OSError:
+        return False
 
 
 def refresh_index() -> None:

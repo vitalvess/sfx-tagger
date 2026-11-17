@@ -511,10 +511,14 @@ def knowledge_suspects(request: Request, limit: int = 100):
     from . import suspeitos
     kb = get_knowledge()
     t = get_tagger()
-    res = suspeitos.find(kb, t if t.cat_matrix is not None else None, limit=max(1, min(limit, 500)))
+    limit = max(1, min(limit, 500))
+    res = suspeitos.find(kb, t if t.cat_matrix is not None else None, limit=500)
     for it in res["items"]:
         it["audio"] = suspeitos.audio_path(kb.meta.get(it["id"], {})) is not None
-    return {**res, "examples": len(kb.meta), "models_ready": t.cat_matrix is not None}
+    # os que se podem ouvir primeiro (mantendo a ordem de suspeita dentro de cada grupo)
+    res["items"] = sorted(res["items"], key=lambda it: not it["audio"])[:limit]
+    return {**res, "examples": len(kb.meta), "models_ready": t.cat_matrix is not None,
+            "external_connected": suspeitos.external_connected()}
 
 
 @app.get("/api/knowledge/audio/{eid}")

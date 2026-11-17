@@ -1344,7 +1344,7 @@ async function loadSuspects() {
     ${r.items.map((it) => `<tr data-sid="${esc(it.id)}">
       <td><div class="sus-file" title="${esc(it.file)}">${esc(it.file || "(sem nome)")}</div>
         <div class="muted">${esc(it.author)}</div>
-        ${it.audio ? `<audio controls preload="none" src="/api/knowledge/audio/${encodeURIComponent(it.id)}"></audio>` : '<div class="muted">ficheiro não encontrado</div>'}</td>
+        ${it.audio ? `<audio controls preload="none" src="/api/knowledge/audio/${encodeURIComponent(it.id)}"></audio>` : `<div class="muted">${r.external_connected ? "ficheiro não encontrado" : "o som está no disco externo (D:), que está desligado"}</div>`}</td>
       <td><code>${esc(it.catid)}</code><div class="muted">${esc(ucsName(it.catid))}</div></td>
       <td><code>${esc(it.suggest)}</code><div class="muted">${esc(ucsName(it.suggest))}</div></td>
       <td class="sus-actions">
